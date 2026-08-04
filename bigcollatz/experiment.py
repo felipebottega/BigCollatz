@@ -14,6 +14,7 @@ from .generator import baseline_candidates
 
 DEFAULT_CANDIDATE_COUNT = 10_000
 STRATEGY = "S0-uniform-deterministic"
+S1_STRATEGY = "S1-parity-prefix-top10"
 COMPLETED_OUTCOMES = frozenset(("reached_one", "repeated_state"))
 
 
@@ -55,6 +56,7 @@ def run_experiment(
     experiment_id: str,
     count: int = DEFAULT_CANDIDATE_COUNT,
     seed: str = "baseline-v1",
+    prefix_length: int | None = None,
 ) -> dict[str, Any]:
     """Evaluate distinct 1000-digit candidates and retain statistics and two top tens."""
     if not experiment_id or Path(experiment_id).name != experiment_id:
@@ -62,13 +64,26 @@ def run_experiment(
     if not isinstance(count, int) or isinstance(count, bool) or count < 1:
         raise ValueError("count must be a positive integer")
 
+    if prefix_length is not None and (not isinstance(prefix_length, int) or
+                                      isinstance(prefix_length, bool) or prefix_length < 1):
+        raise ValueError("prefix_length must be a positive integer")
     parameters = {"seed": seed, "decimal_digits": 1000}
+    strategy = S1_STRATEGY if prefix_length is not None else STRATEGY
+    if prefix_length is not None:
+        parameters["prefix_length"] = prefix_length
     lengths: list[int] = []
     outcomes = {"reached_one": 0, "repeated_state": 0, "interrupted": 0}
     top_heap: list[tuple[tuple[int, int], dict[str, Any]]] = []
     started = time.perf_counter_ns()
 
-    for candidate in baseline_candidates(count, seed=seed):
+    for generated in baseline_candidates(count, seed=seed):
+        if isinstance(generated, tuple):
+            candidate, parent = generated
+            if prefix_length is None:
+                raise ValueError("prefix_length is required for S1 candidates")
+            strategy = S1_STRATEGY
+        else:
+            candidate, parent = generated, None
         trajectory_started = time.perf_counter_ns()
         result = evaluate(candidate)
         runtime_ns = time.perf_counter_ns() - trajectory_started
@@ -82,9 +97,12 @@ def run_experiment(
             "maximum_integer_reached": str(result.maximum_integer),
             "outcome": result.outcome,
             "runtime_seconds": runtime_ns / 1e9,
-            "strategy": STRATEGY,
+            "strategy": strategy,
             "experiment_id": experiment_id,
         }
+        if parent is not None:
+            entry["parent_starting_integer"] = str(parent)
+            entry["prefix_length"] = prefix_length
         keyed = (_top_key(entry), entry)
         if len(top_heap) < 10:
             heapq.heappush(top_heap, keyed)
@@ -95,7 +113,7 @@ def run_experiment(
     top_10 = [entry for _, entry in sorted(top_heap, reverse=True)]
     summary = {
         "experiment_id": experiment_id,
-        "strategy": {"name": STRATEGY, "parameters": parameters},
+        "strategy": {"name": strategy, "parameters": parameters},
         "candidates_evaluated": count,
         "reached_one_count": outcomes["reached_one"],
         "repeated_state_count": outcomes["repeated_state"],
@@ -114,15 +132,23 @@ def run_experiment(
     (result_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
     (result_dir / "top_10.json").write_text(json.dumps(top_10, indent=2, sort_keys=True) + "\n")
     lines = [
-        f"# {experiment_id}", "", f"Strategy: `{STRATEGY}`; candidates: {count:,} (all 1000 digits).", "",
+        f"# {experiment_id}", "", f"Strategy: `{strategy}`; candidates: {count:,} (all 1000 digits).", "",
         "## Statistics", "", f"- Mean: {summary['mean_trajectory_length']:.3f}" if lengths else "- Mean: null",
         f"- Median: {summary['median_trajectory_length']}", f"- P90: {summary['p90_trajectory_length']}",
         f"- P99: {summary['p99_trajectory_length']}", f"- Maximum: {summary['maximum_trajectory_length']}", "",
         "## Top 10", "", "| Start (abbreviated) | Length | Maximum (abbreviated) | Outcome | Runtime (s) |",
         "| --- | ---: | --- | --- | ---: |",
     ]
+    if strategy == S1_STRATEGY:
+        lines[-2:] = [
+            "| Start (abbreviated) | Parent (abbreviated) | Length | Maximum (abbreviated) | Outcome | Runtime (s) |",
+            "| --- | --- | ---: | --- | --- | ---: |",
+        ]
     for entry in top_10:
-        lines.append(f"| `{_abbreviate(entry['starting_integer'])}` | {entry['total_unaccelerated_trajectory_length']} | "
+        parent_cell = (f"`{_abbreviate(entry['parent_starting_integer'])}` | "
+                       if strategy == S1_STRATEGY else "")
+        lines.append(f"| `{_abbreviate(entry['starting_integer'])}` | {parent_cell}"
+                     f"{entry['total_unaccelerated_trajectory_length']} | "
                      f"`{_abbreviate(entry['maximum_integer_reached'])}` | {entry['outcome']} | {entry['runtime_seconds']:.6f} |")
     if top_10:
         lines += ["", "## Best starting integer (complete)", "", "```text", top_10[0]["starting_integer"], "```", ""]

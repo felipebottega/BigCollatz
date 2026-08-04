@@ -31,7 +31,29 @@ def interrupted_evaluate(candidate: int) -> EvaluationResult:
                             stopping_reason="user_stop")
 
 
+def fake_s1_candidates(count: int, seed: str):
+    del seed
+    for ordinal in range(count):
+        parent = 2 * 10**999 + ordinal
+        yield 10**999 + ordinal, parent
+
+
 class ExperimentTests(unittest.TestCase):
+    @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_s1_candidates)
+    @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)
+    def test_s1_lineage_survives_local_global_and_report(self, _evaluate, _candidates):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = run_experiment(root, experiment_id="s1", count=3, prefix_length=17)
+            for entry in result["top_10"]:
+                ordinal = int(entry["starting_integer"]) - 10**999
+                self.assertEqual(entry["parent_starting_integer"], str(2 * 10**999 + ordinal))
+                self.assertEqual(entry["prefix_length"], 17)
+            self.assertEqual(result["top_10"], result["global_top_10"])
+            self.assertEqual(result["top_10"], json.loads(
+                (root / "results/s1/top_10.json").read_text()))
+            self.assertIn("Parent (abbreviated)", (root / "results/s1/summary.md").read_text())
+
     def test_default_scope(self):
         self.assertEqual(DEFAULT_CANDIDATE_COUNT, 10_000)
         self.assertEqual(STRATEGY, "S0-uniform-deterministic")
@@ -50,7 +72,10 @@ class ExperimentTests(unittest.TestCase):
             self.assertEqual(result["summary"]["p99_trajectory_length"], 10.89)
             stored = json.loads((root / "results/e001/top_10.json").read_text())
             self.assertEqual(stored, result["top_10"])
+            self.assertTrue(all("parent_starting_integer" not in entry and
+                                "prefix_length" not in entry for entry in stored))
             report = (root / "results/e001/summary.md").read_text()
+            self.assertNotIn("Parent (abbreviated)", report)
             self.assertIn("…", report)
             self.assertIn(result["top_10"][0]["starting_integer"], report)
             self.assertFalse(any(path.suffix in {".jsonl", ".csv"} for path in root.rglob("*")))

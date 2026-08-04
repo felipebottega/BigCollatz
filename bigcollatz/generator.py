@@ -3,7 +3,42 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Iterator
+from pathlib import Path
+
+
+def load_global_top_10(path: Path) -> list[int]:
+    """Load the distinct, positive, 1000-digit starts in a global top-ten file."""
+    if path.is_dir():
+        path = path / "results" / "global_top_10.json"
+    if not path.exists():
+        raise ValueError(f"global top-10 file does not exist: {path}")
+    if not path.read_text().strip():
+        raise ValueError(f"global top-10 file is empty: {path}")
+    try:
+        records = json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError) as error:
+        raise ValueError(f"invalid global top-10 file: {path}") from error
+    if not isinstance(records, list) or not records:
+        raise ValueError("global top-10 must be a nonempty JSON list")
+
+    parents: list[int] = []
+    for record in records:
+        if not isinstance(record, dict) or "starting_integer" not in record:
+            raise ValueError("invalid global top-10 record")
+        raw_parent = record["starting_integer"]
+        if not isinstance(raw_parent, str) or not raw_parent.isdecimal():
+            raise ValueError("invalid parent starting integer")
+        parent = int(raw_parent)
+        if parent <= 0:
+            raise ValueError("parent starting integers must be positive")
+        if len(raw_parent) != 1000 or raw_parent[0] == "0":
+            raise ValueError("parent starting integers must have exactly 1000 decimal digits")
+        if parent in parents:
+            raise ValueError("duplicate parent starting integer")
+        parents.append(parent)
+    return parents
 
 
 def baseline_candidates(count: int, seed: str = "baseline-v1") -> Iterator[int]:
