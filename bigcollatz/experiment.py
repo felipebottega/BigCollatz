@@ -11,14 +11,14 @@ from typing import Any
 
 from .evaluator import evaluate
 from .generator import (
-    DEFAULT_PREFIX_LENGTH, S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, LINEAGE_STRATEGIES, balanced_allocation,
+    DEFAULT_PREFIX_LENGTH, S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, LINEAGE_STRATEGIES, balanced_allocation,
     baseline_candidates, load_global_top_10, load_lineage_weights, parity_prefix_candidate_records,
-    validate_parity_prefix, weighted_allocation, weighted_parity_prefix_candidate_records,
+    mixed_prefix_candidate_records, validate_parity_prefix, weighted_allocation, weighted_parity_prefix_candidate_records,
 )
 
 DEFAULT_CANDIDATE_COUNT = 10_000
 STRATEGY = S0_STRATEGY
-SUPPORTED_STRATEGIES = (S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY)
+SUPPORTED_STRATEGIES = (S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY)
 COMPLETED_OUTCOMES = frozenset(("reached_one", "repeated_state"))
 
 
@@ -119,6 +119,25 @@ def run_experiment(
             ],
         })
         candidate_records = parity_prefix_candidate_records(count, parents, seed, prefix_length)
+    elif strategy == S4_STRATEGY:
+        source = output_root / "results" / "global_top_10.json"
+        parents = load_global_top_10(source)
+        prefix_lengths = (128, 256, 384)
+        pair_count = len(parents) * len(prefix_lengths)
+        allocation = balanced_allocation(count, list(range(pair_count)))
+        parameters.update({
+            "source_global_top_10_file": "results/global_top_10.json",
+            "prefix_lengths": list(prefix_lengths),
+            "number_of_parents_used": len(parents),
+            "deterministic_seed": seed,
+            "allocation_per_parent_prefix": [
+                {"parent": str(parent), "prefix_length": prefix, "candidate_count": allocated}
+                for (parent, prefix), allocated in zip(
+                    [(parent, prefix) for parent in parents for prefix in prefix_lengths], allocation
+                )
+            ],
+        })
+        candidate_records = mixed_prefix_candidate_records(count, parents, seed, prefix_lengths)
     elif strategy in (S2_STRATEGY, S3_STRATEGY):
         if strategy == S2_STRATEGY:
             source_relative = "results/e002-s1-parity-prefix-256/top_10.json"
@@ -160,9 +179,14 @@ def run_experiment(
     cycle_candidates: list[dict[str, Any]] = []
     started = time.perf_counter_ns()
 
-    for candidate, parent in candidate_records:
+    for record in candidate_records:
+        if len(record) == 3:
+            candidate, parent, candidate_prefix_length = record
+        else:
+            candidate, parent = record
+            candidate_prefix_length = prefix_length
         if validate_candidates and parent is not None and not validate_parity_prefix(
-                candidate, parent, prefix_length):
+                candidate, parent, candidate_prefix_length):
             raise ValueError("generated candidate does not reproduce its parent's parity prefix")
         trajectory_started = time.perf_counter_ns()
         result = evaluate(candidate)
@@ -171,7 +195,7 @@ def run_experiment(
         if result.outcome == "repeated_state":
             cycle_candidates.append(_cycle_candidate_record(
                 result=result, candidate=candidate, experiment_id=experiment_id,
-                strategy=strategy, parent=parent, prefix_length=prefix_length,
+                strategy=strategy, parent=parent, prefix_length=candidate_prefix_length,
             ))
         if result.outcome not in COMPLETED_OUTCOMES:
             continue
@@ -187,7 +211,7 @@ def run_experiment(
         }
         if strategy in LINEAGE_STRATEGIES:
             entry["parent_starting_integer"] = str(parent)
-            entry["prefix_length"] = prefix_length
+            entry["prefix_length"] = candidate_prefix_length
         keyed = (_top_key(entry), entry)
         if len(top_heap) < 10:
             heapq.heappush(top_heap, keyed)

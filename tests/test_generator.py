@@ -214,5 +214,19 @@ class WeightedLineageGeneratorTests(unittest.TestCase):
                         )
 
 
+    def test_mixed_prefix_records_are_distinct_1000_digit_and_validate(self):
+        from bigcollatz.generator import mixed_prefix_candidate_records, validate_parity_prefix
+        parents = [10**999 + 12345, 2 * 10**999 + 67890]
+        records = list(mixed_prefix_candidate_records(12, parents, "fixture", (8, 12)))
+        self.assertEqual(len(records), 12)
+        starts = [candidate for candidate, _, _ in records]
+        self.assertEqual(len(set(starts)), 12)
+        self.assertTrue(all(len(str(candidate)) == 1000 for candidate in starts))
+        self.assertEqual(sorted({prefix for _, _, prefix in records}), [8, 12])
+        for candidate, parent, prefix in records:
+            self.assertIn(parent, parents)
+            self.assertTrue(validate_parity_prefix(candidate, parent, prefix))
+
+
 if __name__ == "__main__":
     unittest.main()
