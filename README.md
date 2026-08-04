@@ -1,2 +1,73 @@
 # BigCollatz
-This project searches for cycles in the space of Collatz sequences of large numbers.
+
+BigCollatz is a reproducible experimental system for **finding unusually long
+Collatz trajectories whose starting values have 500--1000 decimal digits**.
+It is not a proof project, a random-number sweep, or a consecutive-integer
+scanner. The search will compare deterministic, structurally motivated
+generators under a common compute budget.
+
+For an integer `n > 0`, one step is
+
+```text
+n -> n / 2       when n is even
+n -> 3*n + 1     when n is odd
+```
+
+All states will use arbitrary-precision integers. A run longer than one million
+steps means only that the threshold was exceeded. It is **not** a loop
+candidate unless an exact state repeats. The familiar `1 -> 4 -> 2 -> 1` cycle
+is recorded as `reached_one`, never as a discovery.
+
+## Status
+
+The repository is in its research/design phase. No 100,000-candidate
+experiment has been run and the empty `results/` and `reports/` directories are
+intentional. The next milestone is the exact evaluator described in
+[`TODO.md`](TODO.md).
+
+## Planned workflow
+
+1. Generate a deterministic manifest of candidates and provenance.
+2. Evaluate it with resumable workers and exact cycle detection.
+3. Preserve append-only raw records in `results/<experiment-id>/`.
+4. Validate and summarize those records into `reports/<experiment-id>/`.
+5. Compare quality and cost, analyze structural features, and register the
+   next strategy before running it.
+
+Every experiment will be reproducible from a committed configuration, seed
+manifest, software revision, and documented execution environment. See
+[`RESEARCH_PLAN.md`](RESEARCH_PLAN.md), [`ARCHITECTURE.md`](ARCHITECTURE.md),
+and [`STRATEGIES.md`](STRATEGIES.md) for the full design.
+
+## Planned command-line interface
+
+The commands below specify the intended interface; they are **not implemented
+yet**.
+
+```bash
+bigcollatz generate --config experiments/e001.toml --output manifest.jsonl
+bigcollatz evaluate --manifest manifest.jsonl --results results/e001
+bigcollatz summarize --results results/e001 --report reports/e001
+bigcollatz resume --results results/e001
+bigcollatz verify-record results/e001/raw/part-000.jsonl:42
+```
+
+## Repository map
+
+| Path | Purpose |
+| --- | --- |
+| `RESEARCH_PLAN.md` | hypotheses, experimental protocol, and analysis plan |
+| `ARCHITECTURE.md` | components, data model, correctness, and checkpointing |
+| `STRATEGIES.md` | strategy registry, including rejected and untested ideas |
+| `EXPERIMENTS.md` | append-only experiment ledger |
+| `DECISIONS.md` | consequential decisions and rationale |
+| `TODO.md` | prioritized implementation plan |
+| `results/` | raw machine-readable outputs (large artifacts stay uncommitted) |
+| `reports/` | derived summaries and plots |
+
+## Scope and safety limits
+
+Candidates must be positive and have 500--1000 decimal digits. Evaluations use
+explicit step/time/bit-length limits; reaching a limit is reported as censored
+(`step_limit`, `time_limit`, or `bit_limit`), not as convergence, divergence,
+or a loop. Conclusions are empirical associations, not proofs about Collatz.
