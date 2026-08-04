@@ -14,6 +14,7 @@ from .generator import baseline_candidates
 
 DEFAULT_CANDIDATE_COUNT = 10_000
 STRATEGY = "S0-uniform-deterministic"
+COMPLETED_OUTCOMES = frozenset(("reached_one", "repeated_state"))
 
 
 def _percentile(values: list[int], p: float) -> float:
@@ -37,6 +38,8 @@ def _update_global(output_root: Path, current: list[dict[str, Any]]) -> list[dic
     existing = json.loads(path.read_text()) if path.exists() else []
     deduplicated: dict[str, dict[str, Any]] = {}
     for entry in existing + current:
+        if entry.get("outcome") not in COMPLETED_OUTCOMES:
+            continue
         start = entry["starting_integer"]
         if start not in deduplicated or _top_key(entry) > _top_key(deduplicated[start]):
             deduplicated[start] = entry
@@ -69,8 +72,10 @@ def run_experiment(
         trajectory_started = time.perf_counter_ns()
         result = evaluate(candidate)
         runtime_ns = time.perf_counter_ns() - trajectory_started
-        lengths.append(result.total_steps_executed)
         outcomes[result.outcome] += 1
+        if result.outcome not in COMPLETED_OUTCOMES:
+            continue
+        lengths.append(result.total_steps_executed)
         entry = {
             "starting_integer": str(candidate),
             "total_unaccelerated_trajectory_length": result.total_steps_executed,
@@ -95,11 +100,11 @@ def run_experiment(
         "reached_one_count": outcomes["reached_one"],
         "repeated_state_count": outcomes["repeated_state"],
         "interrupted_count": outcomes["interrupted"],
-        "mean_trajectory_length": statistics.fmean(lengths),
-        "median_trajectory_length": statistics.median(lengths),
-        "p90_trajectory_length": _percentile(lengths, .90),
-        "p99_trajectory_length": _percentile(lengths, .99),
-        "maximum_trajectory_length": max(lengths),
+        "mean_trajectory_length": statistics.fmean(lengths) if lengths else None,
+        "median_trajectory_length": statistics.median(lengths) if lengths else None,
+        "p90_trajectory_length": _percentile(lengths, .90) if lengths else None,
+        "p99_trajectory_length": _percentile(lengths, .99) if lengths else None,
+        "maximum_trajectory_length": max(lengths) if lengths else None,
         "total_wall_time_seconds": elapsed_seconds,
         "trajectories_per_second": count / elapsed_seconds,
     }
@@ -110,7 +115,7 @@ def run_experiment(
     (result_dir / "top_10.json").write_text(json.dumps(top_10, indent=2, sort_keys=True) + "\n")
     lines = [
         f"# {experiment_id}", "", f"Strategy: `{STRATEGY}`; candidates: {count:,} (all 1000 digits).", "",
-        "## Statistics", "", f"- Mean: {summary['mean_trajectory_length']:.3f}",
+        "## Statistics", "", f"- Mean: {summary['mean_trajectory_length']:.3f}" if lengths else "- Mean: null",
         f"- Median: {summary['median_trajectory_length']}", f"- P90: {summary['p90_trajectory_length']}",
         f"- P99: {summary['p99_trajectory_length']}", f"- Maximum: {summary['maximum_trajectory_length']}", "",
         "## Top 10", "", "| Start (abbreviated) | Length | Maximum (abbreviated) | Outcome | Runtime (s) |",
@@ -119,7 +124,8 @@ def run_experiment(
     for entry in top_10:
         lines.append(f"| `{_abbreviate(entry['starting_integer'])}` | {entry['total_unaccelerated_trajectory_length']} | "
                      f"`{_abbreviate(entry['maximum_integer_reached'])}` | {entry['outcome']} | {entry['runtime_seconds']:.6f} |")
-    lines += ["", "## Best starting integer (complete)", "", "```text", top_10[0]["starting_integer"], "```", ""]
+    if top_10:
+        lines += ["", "## Best starting integer (complete)", "", "```text", top_10[0]["starting_integer"], "```", ""]
     (result_dir / "summary.md").write_text("\n".join(lines))
     global_top = _update_global(output_root, top_10)
     return {"summary": summary, "top_10": top_10, "global_top_10": global_top}
