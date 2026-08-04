@@ -89,3 +89,25 @@
 - **Comparison:** P006 slightly beat P005 on maximum and p99 but still trailed E004's 27,707 maximum and found no exact repeated state.
 - **Conclusion:** inconclusive; residue targeting is competitive with suffix diversification at pilot scale but does not justify a full 10,000-candidate run without a stronger cell-ranking stage.
 - **Next decision:** continue with a compact productivity-ranked cell strategy that can compare parity, suffix, and residue cells under a single validation-bound runner path before allocating full-experiment scale.
+
+## P007 — adaptive cross-family Stage A pilot
+
+- **Hypothesis:** trajectory productivity is concentrated in individual parent/family cells, so a compact cross-family comparison can identify better targets than committing to one whole strategy family.
+- **Cell definitions:** six explicit cells: parity-prefix, decimal-suffix, and residue preservation for each of the current global top-10 parent ranks 1 and 2. Parity cells used prefix length 256; suffix cells preserved 64 trailing decimal digits; residue cells preserved the parent residue modulo `2**128 + 1`.
+- **Generation rules:** deterministic SHA-256 quotient lifts within each cell, seed `p007-stage-a-v1`, 60 candidates per cell, 360 total distinct candidates, exactly 1,000 decimal digits, source parents excluded by the underlying generators.
+- **Validation rules:** strategy-bound validation before evaluation: parity cells require strategy `S1-parity-prefix-top10` and `validation_mode="parity_prefix"`; suffix cells require `S5-decimal-suffix-top10` and `validation_mode="decimal_suffix"`; residue cells require `S6-residue-class-top10` and `validation_mode="residue"`.
+- **Shared evaluator integration:** every candidate used `evaluate_with_metrics`, which delegates to the single evaluator trajectory engine also used by ordinary `evaluate`; exact repeated-state detection remained active.
+- **Scoring rule:** `p90 + 0.5*p99 + 200*threshold_exceedances + 100*top_tail_count + 0.02*mean_repeated_residue_hit_count + 10000*repeated_state_count`, using only persisted Stage A cell summary fields. Ties sort by score descending, family, parent rank, and cell id. Selection first keeps the best unseen families, then fills by score.
+- **Outcome:** all 360 candidates reached `1`; 0 repeated states; 0 interrupted. Best cell was `ap-parity-r2-p256` with mean 24,476.067, p90 25,737.8, p99 26,621.44, maximum 26,907, 42 candidates at or above 24,000, and 4 at or above 26,000. Selected cells were `ap-parity-r2-p256`, `ap-residue-r2-m2p128p1`, and `ap-suffix-r2-d64`.
+- **Decision:** supported for a Stage B pilot only, not for full experiment promotion, because Stage A found robust cell differences but no maximum above E004 and no repeated state.
+- **Next action:** allocate more Stage B candidates to the three selected cells with a distinct seed while preserving one selected cell per family.
+
+## P008 — adaptive cross-family Stage B pilot
+
+- **Hypothesis:** allocating more candidates to the strongest Stage A cells while preserving family diversity will improve the tail relative to one-family P005/P006 pilots and may justify promotion.
+- **Selected cells and allocation:** Stage A selected parent-rank-2 parity, residue, and decimal-suffix cells. Stage B allocated 126 candidates to `ap-parity-r2-p256-b`, 116 to `ap-residue-r2-m2p128p1-b`, and 118 to `ap-suffix-r2-d64-b`, 360 total.
+- **Generation and validation rules:** deterministic seed `p008-stage-b-v1`; all candidates were distinct 1,000-digit integers; each cell used its authoritative family validation mode; pilot artifacts were isolated under `results/p008-adaptive-cross-family-stage-b-360/` and did not modify `results/global_top_10.json`.
+- **Outcome:** all 360 candidates reached `1`; 0 repeated states; 0 interrupted. The best Stage B cell was parity rank 2 with mean 24,459.786, p90 25,389.0, p99 26,045.25, maximum 26,118, 93 candidates at or above 24,000, and 2 at or above 26,000. Overall Stage B maximum was 26,118.
+- **Comparison:** Stage B improved sample depth in productive cells but did not beat Stage A maximum 26,907, P003 maximum 26,969, P005 maximum 25,749, P006 maximum 25,906, E003 maximum 27,445, or E004 maximum 27,707. It found no exact repeated state.
+- **Decision:** adaptive cross-family selection is inconclusive as a heuristic and rejected for full promotion at this evidence level. The family-diverse rank-2 cells are reasonable future pilot targets, but the full-experiment gate is not met because evidence is weaker than E003/E004 and rests on pilot-scale cell statistics rather than a reproducible tail improvement.
+- **Next action:** continue from the same shared metric/evaluator infrastructure with a new hypothesis that perturbs the strongest rank-2 parity cell rather than promoting this adaptive method.
