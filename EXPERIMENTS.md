@@ -12,7 +12,8 @@ runtime, result summary, interpretation, limitations, and next decision.
 - **Status:** planned; not run
 - **Scale:** small fixtures and deterministic benchmark only
 - **Purpose:** verify scalar/optimized equivalence, exact cycle classification,
-  checkpoint recovery, schema validation, and bigint throughput.
+  interruption/censoring classification, checkpoint recovery, schema
+  validation, and bigint throughput.
 - **Acceptance:** all correctness tests pass; interrupted output resumes without
   missing/duplicate records; benchmark metadata is complete.
 
@@ -20,9 +21,10 @@ runtime, result summary, interpretation, limitations, and next decision.
 
 - **Status:** planned; not run
 - **Scale:** 100--1,000 candidates
-- **Purpose:** validate S0 generation and estimate full-run limits/cost.
-- **Decision:** choose resource limits and shard sizing without interpreting the
-  pilot maximum as a strategy result.
+- **Purpose:** validate S0 generation and estimate full-run operational
+  safety limits/cost.
+- **Decision:** choose safety limits and shard sizing without interpreting an
+  interrupted pilot trajectory as completed or as a strategy result.
 
 ### E002 — parity-prefix beam pilot
 

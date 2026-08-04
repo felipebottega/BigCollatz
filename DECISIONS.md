@@ -11,10 +11,15 @@ incomparable. **Consequence:** batched operations need boundary-aware tests.
 ## D002 — exact repetition is distinct from a long run
 
 **Decision:** Only full-bigint equality within one trajectory establishes a
-repeated state. One million steps is merely a recorded threshold. Reaching `1`
-classifies the known cycle as ordinary convergence.
+repeated state. Exact evaluation continues until `1` or exact repetition unless
+an operational interruption occurs. Reaching `1` classifies the known cycle as
+ordinary convergence.
 
 **Reason:** runtime length alone supplies no evidence of a cycle.
+
+**Consequence:** user stops, shutdowns, resource exhaustion, errors, and
+configurable safety limits are censored records only; they cannot support a
+claim of convergence, divergence, or cycling.
 
 ## D003 — manifests and raw results are immutable
 
@@ -63,3 +68,13 @@ sources before importing detailed algorithms or claims.
 **Reason:** network access was blocked during this initial planning pass; the
 architecture therefore relies only on conservative, independently testable
 mathematical invariants.
+
+## D009 — operational interruption is not a mathematical outcome
+
+**Decision:** The result model separates `reached_one` and `repeated_state`
+from `interrupted`. Every interruption carries an operational reason and the
+exact observed prefix metrics; no fixed trajectory-length threshold is part of
+the research objective.
+
+**Reason:** a finite resource budget describes the computation, not the
+unobserved mathematical behavior of the trajectory.

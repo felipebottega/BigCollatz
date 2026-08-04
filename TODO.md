@@ -6,10 +6,10 @@
   schema v1.
 - [ ] Implement a scalar arbitrary-precision reference evaluator with explicit
   `reached_one`, exact full-state-set repetition detection, maximum tracking,
-  and resource stop reasons.
+  and distinctly censored operational interruption reasons.
 - [ ] Add hand-checked trajectory tests (`1`, `2`, `3`, `6`, `27`), an injected
-  transition function for nontrivial cycle tests, and threshold/limit boundary
-  tests.
+  transition function for nontrivial cycle tests, and interruption/safety-limit
+  boundary tests that reject mathematical classifications.
 - [ ] Implement the trailing-zero batched evaluator and property-test every
   field against the scalar reference.
 - [ ] Add record serialization/validation with decimal-string bigints.
@@ -43,7 +43,8 @@ interruption resumes to the same output as an uninterrupted fixture.
 - [ ] Run and record E000, then E001 and E002 at 100--1,000 candidates.
 - [ ] Profile bigint transitions, batching, I/O, cache opportunities, beam
   generation cost, and memory.
-- [ ] Set production step/time/bit limits and shard sizes from pilot evidence.
+- [ ] Set optional production safety limits and shard sizes from pilot evidence;
+  verify that every limit produces only a censored interruption record.
 - [ ] Recheck bibliography against primary sources when network access permits.
 
 ## P4 — second construction and scale gate
