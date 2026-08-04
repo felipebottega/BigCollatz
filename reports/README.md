@@ -1,6 +1,6 @@
-# Reports
+# Historical reports
 
-Reports are simple derivatives of raw JSONL. They show top starting integers,
-raw trajectory lengths, runtimes, strategies, and per-digit count, mean, median,
-p90, maximum, and best start. The JSON report is machine-readable and the
-Markdown report is for quick inspection.
+`e000-p0-pilot` documents the completed 600-candidate, six-stratum pilot. It is
+retained only as historical documentation. New experiments do not use its
+multi-stratum report or raw-record structure; their small outputs live under
+`results/<experiment-id>/`.

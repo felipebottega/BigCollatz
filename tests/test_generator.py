@@ -4,29 +4,20 @@ from bigcollatz.generator import baseline_candidates
 
 
 class GeneratorTests(unittest.TestCase):
-    def test_deterministic_unique_and_in_range(self):
-        first = list(baseline_candidates(20, 500, "fixture"))
-        self.assertEqual(first, list(baseline_candidates(20, 500, "fixture")))
+    def test_deterministic_distinct_and_exactly_1000_digits(self):
+        first = list(baseline_candidates(100, "fixture"))
+        self.assertEqual(first, list(baseline_candidates(100, "fixture")))
         self.assertEqual(len(first), len(set(first)))
-        self.assertTrue(all(len(str(value)) == 500 for value in first))
+        self.assertTrue(all(len(str(value)) == 1000 for value in first))
 
-    def test_all_supported_boundaries(self):
-        self.assertEqual(len(str(next(baseline_candidates(1, 500)))), 500)
-        self.assertEqual(len(str(next(baseline_candidates(1, 1000)))), 1000)
-        for digits in (499, 1001):
+    def test_seed_selects_stream(self):
+        self.assertNotEqual(list(baseline_candidates(3, "a")),
+                            list(baseline_candidates(3, "b")))
+
+    def test_invalid_count(self):
+        for count in (-1, 1.5, True):
             with self.assertRaises(ValueError):
-                list(baseline_candidates(1, digits))
-
-    def test_digit_strata_use_domain_separated_streams(self):
-        # The first 500 digits are not a shared prefix of another stratum's hash stream.
-        a = list(baseline_candidates(3, 500, "same-seed"))
-        b = list(baseline_candidates(3, 501, "same-seed"))
-        self.assertNotEqual([str(value)[:100] for value in a],
-                            [str(value)[:100] for value in b])
-
-    def test_rejection_sampling_is_deterministic(self):
-        expected = list(baseline_candidates(5, 500, "rejection-fixture"))
-        self.assertEqual(expected, list(baseline_candidates(5, 500, "rejection-fixture")))
+                list(baseline_candidates(count))  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":

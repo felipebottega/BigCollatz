@@ -1,32 +1,21 @@
 # Architecture
 
-The whole program has four direct parts:
+The active program has one direct flow:
 
 ```text
-candidate generator -> evaluator -> JSONL file -> statistical report
+1000-digit candidate generator -> exact evaluator -> statistics and top 10
 ```
 
-- `bigcollatz/generator.py` deterministically samples candidates. The baseline
-  uses digit-stratum-separated SHA-256 input and rejection sampling.
-- `bigcollatz/evaluator.py` applies exact arbitrary-precision Collatz steps.
-  Brent cycle detection is the normal implementation; a simple state set is an
-  independent test oracle.
-- `bigcollatz/model.py` validates results and schema-v1 JSON records. Large
-  integers are canonical decimal strings so JSON consumers cannot round them.
-- `bigcollatz/experiment.py` runs candidates sequentially, appends their result
-  records to one JSONL file, and produces JSON and Markdown summaries.
+`bigcollatz/experiment.py` runs a sequential loop. It temporarily retains the
+10,000 integer trajectory lengths to compute the median and percentiles, plus a
+ten-entry heap. It does not retain all candidates or full result records.
 
-A result ends as `reached_one`, `repeated_state`, or `interrupted`. Cycle entry
-and period exist only for exact repetitions. Operational stopping reasons are
-censored and are not interpreted as Collatz outcomes.
+Each experiment directory contains only `summary.json`, `summary.md`, and
+`top_10.json`. After successful completion, its top ten is merged by starting
+integer with `results/global_top_10.json` and the longest ten are retained.
+Large integers are decimal strings in JSON to preserve exact values.
 
-## Output
-
-The pilot keeps one raw JSONL file, a short metadata JSON file, and generated
-summary/benchmark files. Reports contain raw trajectory-length statistics,
-top starting integers, and separate statistics for every digit stratum.
-
-The project does not need shards, checkpoints, rolling checksums, worker
-coordination, manifests, resumable scheduling, persistent caches, or storage
-abstractions. If the small sequential runner becomes measurably inadequate,
-changes should be justified by an experiment rather than planned in advance.
+The evaluator uses Brent cycle detection with constant state. A state-set
+implementation remains solely as a test oracle. The project intentionally has
+no shards, checkpoints, schedulers, manifests, workers, persistent caches,
+database, schema framework, or storage abstraction.

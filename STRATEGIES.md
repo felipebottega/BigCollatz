@@ -1,27 +1,14 @@
 # Strategy Notes
 
-## S0 — deterministic uniform control (`pilot`)
+## S0-uniform-deterministic
 
-Use SHA-256 counter expansion with a separate domain for every decimal-digit
-stratum. Rejection sampling gives a uniform value in each requested interval.
-This trajectory-blind generator is a reproducible control, not an informed
-search strategy. E000 contains 100 starts in each of six strata.
+The active baseline deterministically chooses an offset in the 1000-digit
+decimal interval from a SHA-256 seed, then walks the interval without
+replacement. Every generated candidate has exactly 1000 digits and candidates
+within an experiment are distinct. This trajectory-blind generator is a
+reproducible control.
 
 ## S1 — parity-prefix congruences (`idea only`)
 
-A finite parity word determines a residue class modulo a power of two. A future
-small experiment could construct a few such classes, lift them into each digit
-stratum, and compare their raw trajectory lengths with digit-matched S0 values.
-The construction and comparison must remain auditable and include generation
-runtime. **S1 is not implemented yet.**
-
-## Other ideas, not commitments
-
-- traverse a small canonical inverse Collatz tree and measure whether its nodes
-  provide useful starts;
-- test simple residue-balanced controls;
-- make deterministic edits to a held-out set of promising starts.
-
-These are research notes, not an implementation roadmap. A new generator should
-be added only for a concrete, modest experiment. Pure random sampling,
-consecutive scanning, and storing full trajectories are not principal methods.
+A finite parity word determines a residue class modulo a power of two. This is
+only a research note; S1 has not been implemented or run.
