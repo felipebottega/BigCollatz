@@ -89,3 +89,28 @@
 - **Comparison:** P006 slightly beat P005 on maximum and p99 but still trailed E004's 27,707 maximum and found no exact repeated state.
 - **Conclusion:** inconclusive; residue targeting is competitive with suffix diversification at pilot scale but does not justify a full 10,000-candidate run without a stronger cell-ranking stage.
 - **Next decision:** continue with a compact productivity-ranked cell strategy that can compare parity, suffix, and residue cells under a single validation-bound runner path before allocating full-experiment scale.
+
+## P007 — adaptive cross-family Stage A pilot
+
+- **Identifier:** `p007-adaptive-stage-a-300`.
+- **Hypothesis:** explicit cells from parity-prefix, decimal-suffix, and residue families can be compared under one correctness-first runner with shared exact evaluation, global uniqueness, recurrence metrics, and isolated pilot artifacts.
+- **Cells:** `stage-a-parity-r1` (parity-prefix, parent rank 1, prefix length 128, 100 candidates), `stage-a-suffix-r2` (decimal suffix, parent rank 2, suffix digits 64, 100 candidates), and `stage-a-residue-r3` (residue, parent rank 3, modulus `2**128 + 1`, 100 candidates).
+- **Validation rules:** every cell declared family, strategy, validation mode, source parent, parent rank, candidate count, and complete parameters; every candidate was validated as exactly 1,000 decimal digits, globally unique, and strategy-bound before evaluation.
+- **Seed:** `adaptive-stage-a-20260804`.
+- **Top-tail rule:** selected exactly `ceil(10% * completed trajectories)` by trajectory length descending, breaking ties by `cell_id` then cell-local order.
+- **Score formula:** `0.45*mean + 0.25*p90 + 0.15*p99_or_p90 + 25*top_tail_count + 10*threshold_evidence + 5*mean_repeated_residue_hits + 20*repeated_state_count`.
+- **Result:** 300 requested and 300 evaluated; 300 reached `1`; 0 repeated state; 0 interrupted; global top ten isolation was confirmed.
+- **Cell statistics:** parity mean 24,037.28 and maximum 25,857 with 8 top-tail entries; suffix mean 24,229.30 and maximum 26,320 with 16 top-tail entries; residue mean 23,854.75 and maximum 25,485 with 6 top-tail entries.
+- **Stage B allocation:** deterministic allocation from persisted scores assigned 100 parity, 102 suffix, and 98 residue candidates.
+- **Decision:** proceed to isolated Stage B only; no full experiment promotion from Stage A alone.
+
+## P008 — adaptive cross-family Stage B pilot
+
+- **Identifier:** `p008-adaptive-stage-b-300`.
+- **Hypothesis:** Stage A scoring can allocate a second isolated pilot while preserving cross-family diversity and exact validation.
+- **Cells:** `stage-b-suffix-r2` (102 candidates), `stage-b-parity-r1` (100 candidates), and `stage-b-residue-r3` (98 candidates), using the same family parameters as Stage A with new seed `adaptive-stage-b-20260804`.
+- **Validation rules:** identical explicit cell and candidate validation, global uniqueness, exact shared evaluator, exact repeat detection, and global top ten isolation.
+- **Result:** 300 requested and 300 evaluated; 300 reached `1`; 0 repeated state; 0 interrupted; global top ten isolation was confirmed.
+- **Cell statistics:** suffix mean 24,031.323529411766 and maximum 25,938 with 9 top-tail entries; parity mean 24,065.24 and maximum 26,395 with 12 top-tail entries; residue mean 24,023.173469387755 and maximum 25,961 with 9 top-tail entries.
+- **Comparison:** Stage B did not approach the E004 best length 27,707; no repeated state was observed; family performance was mixed and not repeatably convincing.
+- **Decision:** do not promote a full 10,000-candidate experiment. Continue from correctness-first adaptive analysis rather than full-scale execution.
