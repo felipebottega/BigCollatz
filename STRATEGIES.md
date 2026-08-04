@@ -48,6 +48,6 @@ parents, and preserves its assigned parent's first 256 unaccelerated parity
 decisions. Candidate quotas use the existing proportional largest-remainder
 allocation rule, with deterministic parent-order tie breaks. The runner records
 the E003 source file, prefix length, deterministic seed, productive lineage
-count, lineage weights, and final per-parent allocation in `summary.json`. This
-section describes the strategy only; it does not indicate that the real S3
-10,000-candidate experiment has been executed.
+count, lineage weights, and final per-parent allocation in `summary.json`. The real 10,000-candidate S3 experiment was executed as
+`e004-s3-recursive-weighted-lineages-256`, with generated artifacts stored under
+`results/e004-s3-recursive-weighted-lineages-256/`.
