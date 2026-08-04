@@ -10,10 +10,15 @@ from pathlib import Path
 from typing import Any
 
 from .evaluator import evaluate
-from .generator import baseline_candidates
+from .generator import (
+    DEFAULT_PREFIX_LENGTH, S0_STRATEGY, S1_STRATEGY, balanced_allocation,
+    baseline_candidates, load_global_top_10, parity_prefix_candidate_records,
+    validate_parity_prefix,
+)
 
 DEFAULT_CANDIDATE_COUNT = 10_000
-STRATEGY = "S0-uniform-deterministic"
+STRATEGY = S0_STRATEGY
+SUPPORTED_STRATEGIES = (S0_STRATEGY, S1_STRATEGY)
 COMPLETED_OUTCOMES = frozenset(("reached_one", "repeated_state"))
 
 
@@ -55,20 +60,45 @@ def run_experiment(
     experiment_id: str,
     count: int = DEFAULT_CANDIDATE_COUNT,
     seed: str = "baseline-v1",
+    strategy: str = S0_STRATEGY,
+    prefix_length: int = DEFAULT_PREFIX_LENGTH,
+    validate_candidates: bool = False,
 ) -> dict[str, Any]:
     """Evaluate distinct 1000-digit candidates and retain statistics and two top tens."""
     if not experiment_id or Path(experiment_id).name != experiment_id:
         raise ValueError("experiment_id must be a nonempty path-safe name")
     if not isinstance(count, int) or isinstance(count, bool) or count < 1:
         raise ValueError("count must be a positive integer")
+    if strategy not in SUPPORTED_STRATEGIES:
+        raise ValueError(f"unsupported strategy: {strategy}")
 
     parameters = {"seed": seed, "decimal_digits": 1000}
+    if strategy == S1_STRATEGY:
+        source = output_root / "results" / "global_top_10.json"
+        parents = load_global_top_10(source)
+        allocation = balanced_allocation(count, parents)
+        parameters.update({
+            "prefix_length": prefix_length,
+            "source_global_top_10_file": "results/global_top_10.json",
+            "number_of_parents_used": len(parents),
+            "deterministic_seed": seed,
+            "allocation_per_parent": [
+                {"parent": str(parent), "candidate_count": allocated}
+                for parent, allocated in zip(parents, allocation)
+            ],
+        })
+        candidate_records = parity_prefix_candidate_records(count, parents, seed, prefix_length)
+    else:
+        candidate_records = ((candidate, None) for candidate in baseline_candidates(count, seed=seed))
     lengths: list[int] = []
     outcomes = {"reached_one": 0, "repeated_state": 0, "interrupted": 0}
     top_heap: list[tuple[tuple[int, int], dict[str, Any]]] = []
     started = time.perf_counter_ns()
 
-    for candidate in baseline_candidates(count, seed=seed):
+    for candidate, parent in candidate_records:
+        if validate_candidates and parent is not None and not validate_parity_prefix(
+                candidate, parent, prefix_length):
+            raise ValueError("generated candidate does not reproduce its parent's parity prefix")
         trajectory_started = time.perf_counter_ns()
         result = evaluate(candidate)
         runtime_ns = time.perf_counter_ns() - trajectory_started
@@ -82,7 +112,7 @@ def run_experiment(
             "maximum_integer_reached": str(result.maximum_integer),
             "outcome": result.outcome,
             "runtime_seconds": runtime_ns / 1e9,
-            "strategy": STRATEGY,
+            "strategy": strategy,
             "experiment_id": experiment_id,
         }
         keyed = (_top_key(entry), entry)
@@ -95,7 +125,7 @@ def run_experiment(
     top_10 = [entry for _, entry in sorted(top_heap, reverse=True)]
     summary = {
         "experiment_id": experiment_id,
-        "strategy": {"name": STRATEGY, "parameters": parameters},
+        "strategy": {"name": strategy, "parameters": parameters},
         "candidates_evaluated": count,
         "reached_one_count": outcomes["reached_one"],
         "repeated_state_count": outcomes["repeated_state"],
@@ -114,7 +144,7 @@ def run_experiment(
     (result_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
     (result_dir / "top_10.json").write_text(json.dumps(top_10, indent=2, sort_keys=True) + "\n")
     lines = [
-        f"# {experiment_id}", "", f"Strategy: `{STRATEGY}`; candidates: {count:,} (all 1000 digits).", "",
+        f"# {experiment_id}", "", f"Strategy: `{strategy}`; candidates: {count:,} (all 1000 digits).", "",
         "## Statistics", "", f"- Mean: {summary['mean_trajectory_length']:.3f}" if lengths else "- Mean: null",
         f"- Median: {summary['median_trajectory_length']}", f"- P90: {summary['p90_trajectory_length']}",
         f"- P99: {summary['p99_trajectory_length']}", f"- Maximum: {summary['maximum_trajectory_length']}", "",
