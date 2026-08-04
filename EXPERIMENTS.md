@@ -9,13 +9,20 @@ runtime, result summary, interpretation, limitations, and next decision.
 
 ### E000 — evaluator correctness and throughput pilot
 
-- **Status:** planned; not run
-- **Scale:** small fixtures and deterministic benchmark only
+- **Status:** complete, 2026-08-04
+- **Scale:** 600 trajectories; 100 at each of 500, 600, 700, 800, 900, and
+  1000 decimal digits
 - **Purpose:** verify scalar/optimized equivalence, exact cycle classification,
   interruption/censoring classification, checkpoint recovery, schema
   validation, and bigint throughput.
-- **Acceptance:** all correctness tests pass; interrupted output resumes without
-  missing/duplicate records; benchmark metadata is complete.
+- **Result:** all 600 reached one; mean 18,023.795 steps, maximum 25,678;
+  27.06 trajectories/s overall and 27,960 KiB peak RSS.
+- **Artifacts:** `results/e000-p0-pilot/` and `reports/e000-p0-pilot/`; raw
+  SHA-256 `2dbc1c7df598c6d6fd1c039db18b87cadabb13ee89c47783b29b4ac03840cd22`.
+- **Decision:** advance to a preregistered S1 parity-prefix beam with matched
+  controls. The baseline contains no trajectory-aware signal.
+- **Limitations:** one machine, 100 observations per stratum, sequential
+  CPython, and no claim beyond this sample. Resume remains a P1 gate.
 
 ### E001 — stratified control pilot
 

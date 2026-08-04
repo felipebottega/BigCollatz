@@ -4,13 +4,17 @@ Every strategy remains here after testing, including failures. Status values are
 `proposed`, `pilot`, `tested`, and `retired`. None has yet been experimentally
 shown effective in this project.
 
-## S0 — stratified deterministic controls (`proposed`, implement first)
+## S0 — stratified deterministic controls (`pilot`)
 
 Generate 500--1000 digit integers with a counter-based cryptographic expansion,
 plus a low-discrepancy bit construction, stratified by digit length and selected
 small moduli. These are reproducible controls, not the central method and not a
 consecutive scan. They quantify ordinary variation, residue imbalance, and the
 cost floor against which guided methods must be judged.
+
+E000's SHA-256 counter component was deliberately trajectory-blind. Across 600
+starts, mean work rose primarily with digit count; it supplied no mechanism to
+enrich the long upper tail. It remains a matched control, not a search strategy.
 
 ## S1 — parity-prefix congruence beam (`proposed`, implement first)
 
@@ -25,6 +29,12 @@ This directly controls early behavior without scanning integers. It is selected
 first because it is mathematically auditable, produces disjoint strata, and can
 be compared with residue-matched controls. Risk: optimizing a finite prefix can
 simply shift work earlier and overfit the surrogate.
+
+**First intelligent experiment:** freeze prefix length and beam width before
+evaluation; lift every winning residue deterministically into every digit
+stratum; and pair it with equal digit- and residue-matched S0 controls. Charge
+generation and evaluation time jointly, deduplicate, and reserve a held-out
+confirmation batch. This is proposed here only and is not implemented in P0.
 
 ## S2 — inverse-tree frontier construction (`proposed`, implement first pilot)
 

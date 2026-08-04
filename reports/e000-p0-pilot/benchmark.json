@@ -1,0 +1,52 @@
+{
+  "average_evaluation_time_ms": 27.337089274999997,
+  "cpu_time_seconds": 17.092111801,
+  "estimated_runtime_seconds": {
+    "1000": 36.95601454166667,
+    "10000": 369.56014541666667,
+    "100000": 3695.601454166667
+  },
+  "peak_process_rss_kib": 27960,
+  "schema_version": 1,
+  "throughput_by_decimal_digits": {
+    "1000": {
+      "mean_steps": 23955.03,
+      "mean_wall_time_ms": 41.91790238,
+      "trajectories": 100,
+      "trajectories_per_second": 23.8561555617612
+    },
+    "500": {
+      "mean_steps": 12118.77,
+      "mean_wall_time_ms": 13.87903863,
+      "trajectories": 100,
+      "trajectories_per_second": 72.05109998314055
+    },
+    "600": {
+      "mean_steps": 14391.37,
+      "mean_wall_time_ms": 18.05377243,
+      "trajectories": 100,
+      "trajectories_per_second": 55.39008558334863
+    },
+    "700": {
+      "mean_steps": 16746.32,
+      "mean_wall_time_ms": 23.548482,
+      "trajectories": 100,
+      "trajectories_per_second": 42.465582282543735
+    },
+    "800": {
+      "mean_steps": 19338.5,
+      "mean_wall_time_ms": 28.66857402,
+      "trajectories": 100,
+      "trajectories_per_second": 34.88140007599862
+    },
+    "900": {
+      "mean_steps": 21592.78,
+      "mean_wall_time_ms": 37.95476619,
+      "trajectories": 100,
+      "trajectories_per_second": 26.34715215986422
+    }
+  },
+  "trajectories": 600,
+  "trajectories_per_second": 27.05919489431236,
+  "wall_time_seconds": 22.173608725
+}

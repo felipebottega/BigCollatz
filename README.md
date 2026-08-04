@@ -22,10 +22,11 @@ claim of convergence, divergence, or cycling.
 
 ## Status
 
-The repository is in its research/design phase. No 100,000-candidate
-experiment has been run and the empty `results/` and `reports/` directories are
-intentional. The next milestone is the exact evaluator described in
-[`TODO.md`](TODO.md).
+Phase P0 is complete. The package now has an arbitrary-precision evaluator,
+production Brent cycle detection, an independent hash-set oracle, schema
+validation, and a deterministic 500--1000 digit baseline. E000 evaluated 600
+trajectories and preserved raw data, benchmarks, metadata, and analysis. No
+100,000-candidate experiment has been run.
 
 ## Planned workflow
 
@@ -41,18 +42,13 @@ manifest, software revision, and documented execution environment. See
 [`RESEARCH_PLAN.md`](RESEARCH_PLAN.md), [`ARCHITECTURE.md`](ARCHITECTURE.md),
 and [`STRATEGIES.md`](STRATEGIES.md) for the full design.
 
-## Planned command-line interface
-
-The commands below specify the intended interface; they are **not implemented
-yet**.
+## Command-line interface
 
 ```bash
-bigcollatz generate --config experiments/e001.toml --output manifest.jsonl
-bigcollatz evaluate --manifest manifest.jsonl --results results/e001
-bigcollatz summarize --results results/e001 --report reports/e001
-bigcollatz resume --results results/e001
-bigcollatz verify-record results/e001/raw/part-000.jsonl:42
+python -m bigcollatz pilot --per-digit 100
 ```
+
+General-purpose manifest, sharding, and resume commands remain P1 work.
 
 ## Repository map
 

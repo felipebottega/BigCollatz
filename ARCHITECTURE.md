@@ -41,12 +41,12 @@ preserving exact unaccelerated metrics. It continues until `1` or an exact
 repetition unless interrupted, and returns a typed record, never a sentinel
 length. Interruption handling is separate from mathematical classification.
 
-Exact cycle detection starts with a hash set of full integer states for bounded
-pilots and tests. Production will support Brent's algorithm as a constant-memory
-mode; equality compares full bigints and its cycle result is replayed to derive
-cycle entry/period before reporting. A second, independent replay command is
-mandatory for any nontrivial repetition. The known cycle is classified by
-reaching `1` first.
+Exact production cycle detection uses Brent's constant-memory algorithm;
+equality compares full bigints and a detected cycle is replayed to normalize the
+cycle entry, period, first-repetition step, and maximum. The full-state hash-set
+implementation remains only as an independent test oracle. A second,
+independent replay is mandatory for any nontrivial repetition. The known cycle
+is classified by reaching `1` first.
 
 Memoization is initially conservative: a process-local cache maps a state to a
 certified `reached_one` suffix with exact remaining step count and suffix
