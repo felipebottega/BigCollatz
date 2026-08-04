@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from bigcollatz.experiment import DEFAULT_CANDIDATE_COUNT, STRATEGY, run_experiment
-from bigcollatz.generator import S1_STRATEGY
+from bigcollatz.generator import S1_STRATEGY, S2_STRATEGY
 from bigcollatz.model import EvaluationResult
 
 
@@ -122,6 +122,57 @@ class ExperimentTests(unittest.TestCase):
             report = (root / "results/guided-lineage/summary.md").read_text()
             self.assertIn("Parent (abbreviated)", report)
             self.assertIn("…", report)
+
+
+    @patch("bigcollatz.experiment.weighted_parity_prefix_candidate_records")
+    @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)
+    def test_s2_records_parameters_and_lineage_survives_outputs_and_global_merge(
+            self, _evaluate, candidate_records):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parents = [10**999 + 101, 2 * 10**999 + 202]
+            candidates = [10**999 + ordinal for ordinal in range(4)]
+            candidate_records.return_value = iter([
+                (candidate, parents[index % 2]) for index, candidate in enumerate(candidates)
+            ])
+            source = root / "results/e002-s1-parity-prefix-256/top_10.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps([
+                {"parent_starting_integer": str(parents[0]), "prefix_length": 256},
+                {"parent_starting_integer": str(parents[0]), "prefix_length": 256},
+                {"parent_starting_integer": str(parents[1]), "prefix_length": 256},
+            ]))
+
+            result = run_experiment(
+                root, experiment_id="s2-lineage", count=4, seed="fixture",
+                strategy=S2_STRATEGY,
+            )
+
+            parameters = result["summary"]["strategy"]["parameters"]
+            self.assertEqual(parameters["source_top_10_file"],
+                             "results/e002-s1-parity-prefix-256/top_10.json")
+            self.assertEqual(parameters["prefix_length"], 256)
+            self.assertEqual(parameters["deterministic_seed"], "fixture")
+            self.assertEqual(parameters["number_of_productive_parent_lineages"], 2)
+            self.assertEqual([item["weight"] for item in parameters["lineage_weights"]], [2, 1])
+            self.assertEqual([item["candidate_count"]
+                              for item in parameters["allocation_per_parent"]], [3, 1])
+            expected_parents = {
+                str(candidate): str(parents[index % 2])
+                for index, candidate in enumerate(candidates)
+            }
+            for entry in result["top_10"]:
+                self.assertEqual(entry["parent_starting_integer"],
+                                 expected_parents[entry["starting_integer"]])
+                self.assertEqual(entry["prefix_length"], 256)
+            stored = json.loads((root / "results/s2-lineage/top_10.json").read_text())
+            self.assertEqual(stored, result["top_10"])
+            persistent_global = json.loads((root / "results/global_top_10.json").read_text())
+            self.assertTrue(all("parent_starting_integer" in entry
+                                and entry["prefix_length"] == 256
+                                for entry in persistent_global))
+            report = (root / "results/s2-lineage/summary.md").read_text()
+            self.assertIn("Parent (abbreviated)", report)
 
     @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
     @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)

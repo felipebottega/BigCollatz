@@ -4,9 +4,9 @@ import tempfile
 from pathlib import Path
 
 from bigcollatz.generator import (
-    balanced_allocation, baseline_candidates, load_global_top_10,
-    parity_prefix_candidate_records, parity_prefix_candidates,
-    validate_parity_prefix,
+    balanced_allocation, baseline_candidates, load_global_top_10, load_lineage_weights,
+    parity_prefix_candidate_records, parity_prefix_candidates, validate_parity_prefix,
+    weighted_allocation, weighted_parity_prefix_candidate_records,
 )
 
 
@@ -93,6 +93,70 @@ class ParityPrefixGeneratorTests(unittest.TestCase):
             path = Path(directory) / "global_top_10.json"
             path.write_text(json.dumps([{"starting_integer": parent}]))
             self.assertEqual(load_global_top_10(path), [int(parent)])
+
+class WeightedLineageGeneratorTests(unittest.TestCase):
+    def test_e002_style_weights_allocate_10000_exactly(self):
+        self.assertEqual(weighted_allocation(10_000, [3, 3, 2, 1, 1]),
+                         [3000, 3000, 2000, 1000, 1000])
+
+    def test_weighted_allocation_sums_exactly_and_remainders_are_deterministic(self):
+        for count in range(25):
+            self.assertEqual(sum(weighted_allocation(count, [1, 1, 1])), count)
+        self.assertEqual(weighted_allocation(5, [1, 1, 1]), [2, 2, 1])
+        self.assertEqual(weighted_allocation(5, [2, 2, 2]), [2, 2, 1])
+
+    def test_load_lineage_weights_uses_only_productive_lineages_in_source_order(self):
+        parent_a = "1" + "0" * 999
+        parent_b = "2" + "0" * 999
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "top_10.json"
+            path.write_text(json.dumps([
+                {"parent_starting_integer": parent_b, "prefix_length": 256},
+                {"parent_starting_integer": parent_a, "prefix_length": 256},
+                {"parent_starting_integer": parent_b, "prefix_length": 256},
+            ]))
+            self.assertEqual(load_lineage_weights(path), [(int(parent_b), 2), (int(parent_a), 1)])
+
+    def test_weighted_candidates_properties_parity_and_determinism(self):
+        parents = [(10**999 + 12345, 2), (2 * 10**999 + 54321, 1)]
+        first = list(weighted_parity_prefix_candidate_records(12, parents, "fixture", 256))
+        second = list(weighted_parity_prefix_candidate_records(12, parents, "fixture", 256))
+        self.assertEqual(first, second)
+        self.assertNotEqual(first, list(weighted_parity_prefix_candidate_records(12, parents, "other", 256)))
+        candidates = [candidate for candidate, _ in first]
+        self.assertEqual(len(candidates), len(set(candidates)))
+        self.assertTrue(all(len(str(candidate)) == 1000 for candidate in candidates))
+        self.assertTrue(all(candidate not in {parent for parent, _ in parents} for candidate in candidates))
+        self.assertTrue(all(right - left != 1 for left, right in zip(candidates, candidates[1:])))
+        self.assertTrue(all(validate_parity_prefix(candidate, parent, 256) for candidate, parent in first))
+
+    def test_invalid_lineage_source_files_have_clear_errors(self):
+        valid_parent = "9" * 1000
+        cases = [
+            (None, "missing"),
+            ("", "empty"),
+            ("not json", "malformed JSON"),
+            (json.dumps([]), "empty"),
+            (json.dumps([{}]), "missing lineage fields"),
+            (json.dumps([{"parent_starting_integer": "1" + "0" * 998, "prefix_length": 256}]), "1000-digit"),
+            (json.dumps([{"parent_starting_integer": "0" + "1" * 999, "prefix_length": 256}]), "canonical"),
+            (json.dumps([{"parent_starting_integer": valid_parent, "prefix_length": 255}]), "does not match requested"),
+            (json.dumps([
+                {"parent_starting_integer": valid_parent, "prefix_length": 256},
+                {"parent_starting_integer": valid_parent, "prefix_length": 255},
+            ]), "inconsistent prefix lengths"),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "top_10.json"
+            for contents, message in cases:
+                with self.subTest(message=message):
+                    if contents is None:
+                        if path.exists():
+                            path.unlink()
+                    else:
+                        path.write_text(contents)
+                    with self.assertRaisesRegex(ValueError, message):
+                        load_lineage_weights(path)
 
 
 if __name__ == "__main__":

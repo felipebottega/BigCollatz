@@ -11,14 +11,14 @@ from typing import Any
 
 from .evaluator import evaluate
 from .generator import (
-    DEFAULT_PREFIX_LENGTH, S0_STRATEGY, S1_STRATEGY, balanced_allocation,
-    baseline_candidates, load_global_top_10, parity_prefix_candidate_records,
-    validate_parity_prefix,
+    DEFAULT_PREFIX_LENGTH, S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, balanced_allocation,
+    baseline_candidates, load_global_top_10, load_lineage_weights, parity_prefix_candidate_records,
+    validate_parity_prefix, weighted_allocation, weighted_parity_prefix_candidate_records,
 )
 
 DEFAULT_CANDIDATE_COUNT = 10_000
 STRATEGY = S0_STRATEGY
-SUPPORTED_STRATEGIES = (S0_STRATEGY, S1_STRATEGY)
+SUPPORTED_STRATEGIES = (S0_STRATEGY, S1_STRATEGY, S2_STRATEGY)
 COMPLETED_OUTCOMES = frozenset(("reached_one", "repeated_state"))
 
 
@@ -88,6 +88,27 @@ def run_experiment(
             ],
         })
         candidate_records = parity_prefix_candidate_records(count, parents, seed, prefix_length)
+    elif strategy == S2_STRATEGY:
+        source = output_root / "results" / "e002-s1-parity-prefix-256" / "top_10.json"
+        parent_weights = load_lineage_weights(source, prefix_length)
+        allocation = weighted_allocation(count, [weight for _, weight in parent_weights])
+        parameters.update({
+            "source_top_10_file": "results/e002-s1-parity-prefix-256/top_10.json",
+            "prefix_length": prefix_length,
+            "deterministic_seed": seed,
+            "number_of_productive_parent_lineages": len(parent_weights),
+            "lineage_weights": [
+                {"parent": str(parent), "weight": weight}
+                for parent, weight in parent_weights
+            ],
+            "allocation_per_parent": [
+                {"parent": str(parent), "weight": weight, "candidate_count": allocated}
+                for (parent, weight), allocated in zip(parent_weights, allocation)
+            ],
+        })
+        candidate_records = weighted_parity_prefix_candidate_records(
+            count, parent_weights, seed, prefix_length
+        )
     else:
         candidate_records = ((candidate, None) for candidate in baseline_candidates(count, seed=seed))
     lengths: list[int] = []
@@ -115,7 +136,7 @@ def run_experiment(
             "strategy": strategy,
             "experiment_id": experiment_id,
         }
-        if strategy == S1_STRATEGY:
+        if strategy in (S1_STRATEGY, S2_STRATEGY):
             entry["parent_starting_integer"] = str(parent)
             entry["prefix_length"] = prefix_length
         keyed = (_top_key(entry), entry)
@@ -147,9 +168,9 @@ def run_experiment(
     (result_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
     (result_dir / "top_10.json").write_text(json.dumps(top_10, indent=2, sort_keys=True) + "\n")
     top_header = ("| Start (abbreviated) | Parent (abbreviated) | Length | "
-                  "Maximum (abbreviated) | Outcome | Runtime (s) |") if strategy == S1_STRATEGY else (
+                  "Maximum (abbreviated) | Outcome | Runtime (s) |") if strategy in (S1_STRATEGY, S2_STRATEGY) else (
                   "| Start (abbreviated) | Length | Maximum (abbreviated) | Outcome | Runtime (s) |")
-    top_separator = ("| --- | --- | ---: | --- | --- | ---: |" if strategy == S1_STRATEGY
+    top_separator = ("| --- | --- | ---: | --- | --- | ---: |" if strategy in (S1_STRATEGY, S2_STRATEGY)
                      else "| --- | ---: | --- | --- | ---: |")
     lines = [
         f"# {experiment_id}", "", f"Strategy: `{strategy}`; candidates: {count:,} (all 1000 digits).", "",
@@ -160,7 +181,7 @@ def run_experiment(
     ]
     for entry in top_10:
         parent_cell = (f"`{_abbreviate(entry['parent_starting_integer'])}` | "
-                       if strategy == S1_STRATEGY else "")
+                       if strategy in (S1_STRATEGY, S2_STRATEGY) else "")
         lines.append(f"| `{_abbreviate(entry['starting_integer'])}` | {parent_cell}{entry['total_unaccelerated_trajectory_length']} | "
                      f"`{_abbreviate(entry['maximum_integer_reached'])}` | {entry['outcome']} | {entry['runtime_seconds']:.6f} |")
     if top_10:
