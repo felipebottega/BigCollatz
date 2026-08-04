@@ -4,6 +4,13 @@ from bigcollatz.generator import baseline_candidates
 
 
 class GeneratorTests(unittest.TestCase):
+    def test_ten_thousand_1000_digit_candidates_are_distinct_and_not_consecutive(self):
+        candidates = list(baseline_candidates(10_000, 1000, "large-fixture"))
+        self.assertEqual(len(candidates), len(set(candidates)))
+        self.assertTrue(all(len(str(value)) == 1000 for value in candidates))
+        self.assertTrue(all(abs(left - right) != 1
+                            for left, right in zip(candidates, candidates[1:])))
+
     def test_deterministic_unique_and_in_range(self):
         first = list(baseline_candidates(20, 500, "fixture"))
         self.assertEqual(first, list(baseline_candidates(20, 500, "fixture")))
@@ -27,6 +34,10 @@ class GeneratorTests(unittest.TestCase):
     def test_rejection_sampling_is_deterministic(self):
         expected = list(baseline_candidates(5, 500, "rejection-fixture"))
         self.assertEqual(expected, list(baseline_candidates(5, 500, "rejection-fixture")))
+
+    def test_different_seeds_produce_different_candidates(self):
+        self.assertNotEqual(list(baseline_candidates(20, 1000, "seed-a")),
+                            list(baseline_candidates(20, 1000, "seed-b")))
 
 
 if __name__ == "__main__":

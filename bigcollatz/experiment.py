@@ -27,6 +27,10 @@ def _percentile(values: list[int], p: float) -> float:
     return ordered[lower] if fraction == 0 else ordered[lower] + fraction * (ordered[lower + 1] - ordered[lower])
 
 
+def _format_stat(value: float | int | None, precision: int) -> str:
+    return "null" if value is None else f"{value:.{precision}f}"
+
+
 def run_pilot(output_root: Path, *, per_digit: int = 40) -> dict:
     """Run the six-stratum baseline and write plain JSONL and JSON reports."""
     if not isinstance(per_digit, int) or isinstance(per_digit, bool) or per_digit < 1:
@@ -58,22 +62,26 @@ def run_pilot(output_root: Path, *, per_digit: int = 40) -> dict:
     raw_bytes = "".join(json.dumps(r, sort_keys=True, separators=(",", ":")) + "\n" for r in records).encode()
     raw_path.write_bytes(raw_bytes)
     times = [r["wall_time_ns"] for r in records]
-    steps = [r["total_steps_executed"] for r in records]
+    completed = [r for r in records if r["outcome"] in {"reached_one", "repeated_state"}]
+    steps = [r["total_steps_executed"] for r in completed]
     by_digits, strata = {}, {}
     for digit_count in digits:
         group = [r for r in records if r["decimal_digits"] == digit_count]
         group_time = sum(r["wall_time_ns"] for r in group)
-        lengths = [r["total_steps_executed"] for r in group]
-        best = max(group, key=lambda r: r["total_steps_executed"])
+        completed_group = [r for r in group if r["outcome"] in {"reached_one", "repeated_state"}]
+        lengths = [r["total_steps_executed"] for r in completed_group]
+        best = max(completed_group, key=lambda r: r["total_steps_executed"], default=None)
         by_digits[str(digit_count)] = {
             "trajectories": len(group), "mean_wall_time_ms": statistics.fmean(r["wall_time_ns"] for r in group) / 1e6,
             "trajectories_per_second": len(group) * 1e9 / group_time,
-            "mean_steps": statistics.fmean(r["total_steps_executed"] for r in group),
+            "mean_steps": statistics.fmean(lengths) if lengths else None,
         }
         strata[str(digit_count)] = {
-            "count": len(group), "mean": statistics.fmean(lengths),
-            "median": statistics.median(lengths), "p90": _percentile(lengths, .9),
-            "maximum": max(lengths), "best_starting_integer": best["start"],
+            "count": len(group), "mean": statistics.fmean(lengths) if lengths else None,
+            "median": statistics.median(lengths) if lengths else None,
+            "p90": _percentile(lengths, .9) if lengths else None,
+            "maximum": max(lengths, default=None),
+            "best_starting_integer": None if best is None else best["start"],
         }
     rate = len(records) * 1e9 / elapsed
     benchmark = {
@@ -84,17 +92,19 @@ def run_pilot(output_root: Path, *, per_digit: int = 40) -> dict:
         "throughput_by_decimal_digits": by_digits,
         "estimated_runtime_seconds": {str(n): n / rate for n in (1000, 10000, 100000)},
     }
-    top = sorted(records, key=lambda r: r["total_steps_executed"], reverse=True)[:10]
+    top = sorted(completed, key=lambda r: r["total_steps_executed"], reverse=True)[:10]
     top_ten = [{key: record[key] for key in
                 ("start", "total_steps_executed", "decimal_digits", "maximum_integer",
                  "wall_time_ns", "strategy")} for record in top]
     summary = {
         "schema_version": 1, "experiment_id": experiment_id, "count": len(records),
         "outcomes": {name: sum(r["outcome"] == name for r in records) for name in ("reached_one", "repeated_state", "interrupted")},
-        "steps": {"mean": statistics.fmean(steps), "median": statistics.median(steps),
-                  "p90_linear_interpolation": _percentile(steps, .9), "maximum": max(steps)},
+        "steps": {"mean": statistics.fmean(steps) if steps else None,
+                  "median": statistics.median(steps) if steps else None,
+                  "p90_linear_interpolation": _percentile(steps, .9) if steps else None,
+                  "maximum": max(steps, default=None)},
         "maximum_excursion_digits": max(len(r["maximum_integer"]) - r["decimal_digits"] for r in records),
-        "best_starting_integer": top[0]["start"], "top_10": top_ten,
+        "best_starting_integer": None if not top else top[0]["start"], "top_10": top_ten,
         "by_decimal_digits": strata,
     }
     metadata = {
@@ -119,8 +129,9 @@ def run_pilot(output_root: Path, *, per_digit: int = 40) -> dict:
               "| ---: | ---: | ---: | ---: | ---: | ---: | --- |"]
     for digit_count in digits:
         item = strata[str(digit_count)]
-        lines.append(f"| {digit_count} | {item['count']} | {item['mean']:.3f} | {item['median']:.1f} | "
-                     f"{item['p90']:.1f} | {item['maximum']} | {item['best_starting_integer']} |")
+        lines.append(f"| {digit_count} | {item['count']} | {_format_stat(item['mean'], 3)} | "
+                     f"{_format_stat(item['median'], 1)} | {_format_stat(item['p90'], 1)} | "
+                     f"{item['maximum']} | {item['best_starting_integer']} |")
     lines += ["", "Percentiles use linear interpolation at `(n - 1) p`.", ""]
     (report_dir / "summary.md").write_text("\n".join(lines))
     return {"benchmark": benchmark, "summary": summary, "metadata": metadata}
