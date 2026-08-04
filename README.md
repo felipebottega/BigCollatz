@@ -13,10 +13,12 @@ n -> n / 2       when n is even
 n -> 3*n + 1     when n is odd
 ```
 
-All states will use arbitrary-precision integers. A run longer than one million
-steps means only that the threshold was exceeded. It is **not** a loop
-candidate unless an exact state repeats. The familiar `1 -> 4 -> 2 -> 1` cycle
-is recorded as `reached_one`, never as a discovery.
+All states will use arbitrary-precision integers. Exact evaluation continues
+until the trajectory first reaches `1` or an exact integer repeats within that
+trajectory. The familiar `1 -> 4 -> 2 -> 1` cycle is therefore recorded as
+`reached_one`, never as a discovery. An operational interruption may stop a
+computation early, but produces only an interrupted/censored record—not a
+claim of convergence, divergence, or cycling.
 
 ## Status
 
@@ -67,7 +69,9 @@ bigcollatz verify-record results/e001/raw/part-000.jsonl:42
 
 ## Scope and safety limits
 
-Candidates must be positive and have 500--1000 decimal digits. Evaluations use
-explicit step/time/bit-length limits; reaching a limit is reported as censored
-(`step_limit`, `time_limit`, or `bit_limit`), not as convergence, divergence,
-or a loop. Conclusions are empirical associations, not proofs about Collatz.
+Candidates must be positive and have 500--1000 decimal digits. Evaluations may
+have configurable operational safety limits, and may also be interrupted by a
+user stop, process shutdown, or resource exhaustion. These events are reported
+only as censored computations with the applicable interruption reason; they
+are never mathematical outcomes. Conclusions are empirical associations, not
+proofs about Collatz.

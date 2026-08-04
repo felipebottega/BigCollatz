@@ -35,9 +35,11 @@ when a counter-based baseline is used.
 
 ### Evaluator
 
-The evaluator accepts one positive bigint and limits. Its hot loop uses trailing
-zero counts to batch divisions while preserving exact unaccelerated metrics.
-It returns a typed record, never a sentinel length.
+The evaluator accepts one positive bigint and optional operational safety
+limits. Its hot loop uses trailing zero counts to batch divisions while
+preserving exact unaccelerated metrics. It continues until `1` or an exact
+repetition unless interrupted, and returns a typed record, never a sentinel
+length. Interruption handling is separate from mathematical classification.
 
 Exact cycle detection starts with a hash set of full integer states for bounded
 pilots and tests. Production will support Brent's algorithm as a constant-memory
@@ -80,17 +82,19 @@ Required fields:
 | `start` | canonical decimal string |
 | `decimal_digits` | integer, 500--1000 |
 | `total_steps_executed` | nonnegative integer, unaccelerated |
-| `reached_one` | boolean |
-| `exceeded_million_steps` | boolean (`steps > 1_000_000`) |
+| `outcome` | `reached_one`, `repeated_state`, or `interrupted` |
+| `reached_one` | boolean; true exactly when `outcome` is `reached_one` |
 | `repeated_state_found` | boolean, exact equality only |
 | `repeated_state`, `cycle_entry_step`, `cycle_period` | decimal string/integers or null |
 | `maximum_integer` | canonical decimal string |
 | `maximum_bit_length` | integer |
-| `stopping_reason` | `reached_one`, `repeated_state`, `step_limit`, `time_limit`, `bit_limit`, or `error` |
+| `stopping_reason` | `reached_one`, `repeated_state`, `user_stop`, `process_shutdown`, `resource_exhaustion`, `safety_limit`, or `error` |
+| `safety_limit_kind`, `safety_limit_value` | configured limit kind/value when applicable, otherwise null |
+| `censored` | boolean; true exactly when `outcome` is `interrupted` |
 | `wall_time_ns`, `cpu_time_ns` | integer timing |
 | `strategy`, `strategy_version`, `strategy_parameters` | provenance |
 | `software_revision`, `evaluator_version` | exact code identity |
-| `limits` | effective step/time/bit limits |
+| `limits` | effective configurable safety limits, or an empty object |
 
 Experiment metadata separately records UTC timestamps, CLI/config, manifest and
 file SHA-256 hashes, OS/kernel, architecture, logical CPUs, memory, interpreter,
@@ -98,10 +102,19 @@ bigint/backend versions, hostname or anonymized machine ID, shard count, and
 environment variables that affect execution.
 
 `total_steps_executed` is work performed, including a terminal step that creates
-`1`. A start of `1` has zero steps. The million flag uses strict `>` as requested.
-If a batched operation would cross a configured step limit, the evaluator
-executes only the permitted logical steps so maximum and terminal state remain
-well-defined.
+`1` or the first repeated state. A start of `1` has zero steps. For an
+interrupted computation it is only the observed prefix length, not a completed
+trajectory length. If a batched operation would cross a configured safety
+limit, the evaluator executes only the permitted logical work so the last exact
+state and maximum remain well-defined. No safety-limit value has mathematical
+significance.
+
+The validator enforces mutually exclusive outcomes. Repetition details are
+present only for `repeated_state`; interrupted records have `reached_one=false`,
+`repeated_state_found=false`, and null cycle details. A `safety_limit` reason
+requires its kind and configured value, while other reasons leave those fields
+null. An abrupt shutdown may preserve only the most recent durable checkpoint;
+that prefix is censored at its recorded step and is not extrapolated.
 
 ## 4. Storage layout
 
@@ -128,6 +141,8 @@ locations and hashes so history is not lost.
   batched versus scalar counts/maxima, and known small trajectories.
 - Cycle tests using an injected finite transition function, plus the known
   `1-4-2` classification and deliberate hash collisions to prove full equality.
+- Interruption tests for every operational reason and safety-limit boundary,
+  asserting that all such records are censored and have no mathematical result.
 - Property tests comparing scalar and optimized evaluators over bounded inputs.
 - Serialization round trips for integers beyond IEEE-754 range.
 - Resume fault-injection at every checkpoint boundary; duplicate-free output.

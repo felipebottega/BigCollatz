@@ -72,8 +72,8 @@ Implement only after S1/S2 measurements reveal useful bounds.
   structure.
 - Maximizing the starting value or its Hamming weight alone: no justified link
   to total stopping time.
-- Calling threshold exceedance a loop candidate: mathematically invalid without
-  an exact repeated state.
+- Calling any long or interrupted run a loop candidate: mathematically invalid
+  without an exact repeated state.
 - Storing all full trajectories by default: unnecessary disk/memory cost.
 
 ## Initial strategy order and decision gates

@@ -8,9 +8,11 @@ compute-matched baselines, and which measurable structures predict that
 performance?
 
 The primary response is the number of *unaccelerated* map applications before
-first reaching `1`. Runtime and integer-operation cost are co-primary practical
-measurements. Runs that do not reach `1` within limits are right-censored and
-must not be assigned a fabricated trajectory length.
+first reaching `1` or first reproducing an exact state. The optimization target
+is starting values with very long trajectories before either event. Runtime
+and integer-operation cost are co-primary practical measurements. Interrupted
+runs are right-censored at the work actually performed and must not be assigned
+a fabricated trajectory length or mathematical classification.
 
 ## 2. Mathematical guardrails
 
@@ -23,8 +25,12 @@ must not be assigned a fabricated trajectory length.
 - `reached_one` takes precedence over recognizing the known cycle.
 - `repeated_state` requires equality of two arbitrary-precision integers from
   the same trajectory. A hash collision is never sufficient.
-- Passing 1,000,000 steps sets `exceeded_million_steps=true`; it says nothing
-  about cycling.
+- In the absence of an operational interruption, exact evaluation has only two
+  terminal outcomes: `reached_one` and `repeated_state`.
+- User stops, process shutdowns, resource exhaustion, errors, and configurable
+  safety limits are operational interruptions. They are recorded as censored
+  computations and never interpreted as convergence, divergence, or evidence
+  of a cycle.
 - Maximum state and bit length include the starting state and every produced
   state. No state is converted to floating point.
 - Cached suffixes may shorten work only when their exact semantics and maxima
@@ -86,8 +92,9 @@ cost, evaluator cost, and analysis cost are reported separately.
 ### Phase A: preregister
 
 Create a committed experiment entry containing hypothesis, strategy version,
-parameters, budget, candidate ordering, evaluator limits, controls, success
-metrics, and stop rules. Freeze a manifest hash before inspecting outcomes.
+parameters, budget, candidate ordering, operational safety limits, controls,
+success metrics, and stop rules. Freeze a manifest hash before inspecting
+outcomes.
 
 ### Phase B: pilot
 
@@ -104,15 +111,18 @@ validated by checksum.
 
 ### Phase D: locked summary
 
-Validate schema and uniqueness, then calculate count; reached/censored/repeated
-counts; max, arithmetic mean, median, p90/p95/p99/p99.9; fixed logarithmic and
-scientifically useful histogram bins; counts above preregistered thresholds;
-top starts; CPU and wall time per sequence; bigint work proxies; and improvement
-over matched controls and the previous strategy.
+Validate schema and uniqueness, then calculate count; reached/repeated/censored
+counts; censoring by operational reason; max, arithmetic mean, median,
+p90/p95/p99/p99.9; fixed logarithmic and scientifically useful histogram bins;
+counts above preregistered trajectory-length cutoffs; top starts; CPU and wall
+time per sequence; bigint work proxies; and improvement over matched controls
+and the previous strategy.
 
-Means and percentiles of completed trajectories exclude censored observations
-and are labeled accordingly. Censoring is separately summarized; survival-style
-estimates may be added when censoring is material.
+Means and percentiles of mathematically completed trajectories exclude censored
+observations and are labeled accordingly. Results are also stratified by
+`reached_one` versus `repeated_state`. Censoring is separately summarized;
+survival-style estimates may be added when censoring is material, without
+relabeling estimates as observed trajectory lengths.
 
 ### Phase E: analyze and iterate
 
@@ -124,11 +134,13 @@ Register the next hypothesis in `STRATEGIES.md`, including negative results.
 
 ## 6. Comparison metrics
 
-Primary quality: maximum completed total stopping time, with top-k values and
-bootstrap uncertainty for distributional summaries. Efficiency: completed
-evaluations/CPU-second, bigint limb-operations proxy, and generation plus
-evaluation CPU time per candidate. Report a Pareto frontier (quality versus
-cost), not a single winner that hides tradeoffs.
+Primary quality: maximum completed trajectory length before reaching `1` or
+repeating a state, with top-k values and bootstrap uncertainty for
+distributional summaries. Outcome-specific summaries distinguish time to `1`
+from time to repetition. Efficiency: completed evaluations/CPU-second, bigint
+limb-operations proxy, and generation plus evaluation CPU time per candidate.
+Report a Pareto frontier (quality versus cost), not a single winner that hides
+tradeoffs.
 
 Duplicate yield, censoring rate, and memory/disk costs are required diagnostics.
 Multiple strategy comparisons must disclose the number tried; promising results
@@ -136,7 +148,8 @@ are validated on a newly generated, frozen manifest.
 
 ## 7. Risks and limitations
 
-- **Unknown convergence:** a resource-limited run cannot establish divergence.
+- **Unknown outcome:** an interrupted run cannot establish convergence,
+  divergence, or a cycle; it reveals only its exact observed prefix.
 - **Loop detection cost:** exact detection and reusable suffix caching can
   compete for memory; constant-memory algorithms cost extra evaluations.
 - **Heavy tails:** maxima are unstable and comparisons at 100,000 samples can
