@@ -11,14 +11,14 @@ from typing import Any
 
 from .evaluator import evaluate
 from .generator import (
-    DEFAULT_PREFIX_LENGTH, S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, balanced_allocation,
+    DEFAULT_PREFIX_LENGTH, S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, LINEAGE_STRATEGIES, balanced_allocation,
     baseline_candidates, load_global_top_10, load_lineage_weights, parity_prefix_candidate_records,
     validate_parity_prefix, weighted_allocation, weighted_parity_prefix_candidate_records,
 )
 
 DEFAULT_CANDIDATE_COUNT = 10_000
 STRATEGY = S0_STRATEGY
-SUPPORTED_STRATEGIES = (S0_STRATEGY, S1_STRATEGY, S2_STRATEGY)
+SUPPORTED_STRATEGIES = (S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY)
 COMPLETED_OUTCOMES = frozenset(("reached_one", "repeated_state"))
 
 
@@ -67,7 +67,7 @@ def _cycle_candidate_record(
         "experiment_id": experiment_id,
         "strategy": strategy,
     }
-    if strategy in (S1_STRATEGY, S2_STRATEGY):
+    if strategy in LINEAGE_STRATEGIES:
         record["parent_starting_integer"] = str(parent)
         record["prefix_length"] = prefix_length
     return record
@@ -119,12 +119,24 @@ def run_experiment(
             ],
         })
         candidate_records = parity_prefix_candidate_records(count, parents, seed, prefix_length)
-    elif strategy == S2_STRATEGY:
-        source = output_root / "results" / "e002-s1-parity-prefix-256" / "top_10.json"
-        parent_weights = load_lineage_weights(source, prefix_length)
+    elif strategy in (S2_STRATEGY, S3_STRATEGY):
+        if strategy == S2_STRATEGY:
+            source_relative = "results/e002-s1-parity-prefix-256/top_10.json"
+            source = output_root / "results" / "e002-s1-parity-prefix-256" / "top_10.json"
+            parent_weights = load_lineage_weights(source, prefix_length)
+            generator_domain = S2_STRATEGY
+        else:
+            source_relative = "results/e003-s2-weighted-lineages-256/top_10.json"
+            source = output_root / "results" / "e003-s2-weighted-lineages-256" / "top_10.json"
+            parent_weights = load_lineage_weights(
+                source, prefix_length, expected_strategy=S2_STRATEGY,
+                expected_experiment_id="e003-s2-weighted-lineages-256",
+                completed_outcomes=COMPLETED_OUTCOMES,
+            )
+            generator_domain = S3_STRATEGY
         allocation = weighted_allocation(count, [weight for _, weight in parent_weights])
         parameters.update({
-            "source_top_10_file": "results/e002-s1-parity-prefix-256/top_10.json",
+            "source_top_10_file": source_relative,
             "prefix_length": prefix_length,
             "deterministic_seed": seed,
             "number_of_productive_parent_lineages": len(parent_weights),
@@ -138,7 +150,7 @@ def run_experiment(
             ],
         })
         candidate_records = weighted_parity_prefix_candidate_records(
-            count, parent_weights, seed, prefix_length
+            count, parent_weights, seed, prefix_length, generator_domain
         )
     else:
         candidate_records = ((candidate, None) for candidate in baseline_candidates(count, seed=seed))
@@ -173,7 +185,7 @@ def run_experiment(
             "strategy": strategy,
             "experiment_id": experiment_id,
         }
-        if strategy in (S1_STRATEGY, S2_STRATEGY):
+        if strategy in LINEAGE_STRATEGIES:
             entry["parent_starting_integer"] = str(parent)
             entry["prefix_length"] = prefix_length
         keyed = (_top_key(entry), entry)
@@ -212,9 +224,9 @@ def run_experiment(
     (result_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
     (result_dir / "top_10.json").write_text(json.dumps(top_10, indent=2, sort_keys=True) + "\n")
     top_header = ("| Start (abbreviated) | Parent (abbreviated) | Length | "
-                  "Maximum (abbreviated) | Outcome | Runtime (s) |") if strategy in (S1_STRATEGY, S2_STRATEGY) else (
+                  "Maximum (abbreviated) | Outcome | Runtime (s) |") if strategy in LINEAGE_STRATEGIES else (
                   "| Start (abbreviated) | Length | Maximum (abbreviated) | Outcome | Runtime (s) |")
-    top_separator = ("| --- | --- | ---: | --- | --- | ---: |" if strategy in (S1_STRATEGY, S2_STRATEGY)
+    top_separator = ("| --- | --- | ---: | --- | --- | ---: |" if strategy in LINEAGE_STRATEGIES
                      else "| --- | ---: | --- | --- | ---: |")
     lines = [
         f"# {experiment_id}", "", f"Strategy: `{strategy}`; candidates: {count:,} (all 1000 digits).", "",
@@ -225,7 +237,7 @@ def run_experiment(
     ]
     for entry in top_10:
         parent_cell = (f"`{_abbreviate(entry['parent_starting_integer'])}` | "
-                       if strategy in (S1_STRATEGY, S2_STRATEGY) else "")
+                       if strategy in LINEAGE_STRATEGIES else "")
         lines.append(f"| `{_abbreviate(entry['starting_integer'])}` | {parent_cell}{entry['total_unaccelerated_trajectory_length']} | "
                      f"`{_abbreviate(entry['maximum_integer_reached'])}` | {entry['outcome']} | {entry['runtime_seconds']:.6f} |")
     if top_10:

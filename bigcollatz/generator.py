@@ -11,6 +11,8 @@ from pathlib import Path
 S0_STRATEGY = "S0-uniform-deterministic"
 S1_STRATEGY = "S1-parity-prefix-top10"
 S2_STRATEGY = "S2-parity-prefix-weighted-lineages"
+S3_STRATEGY = "S3-recursive-weighted-lineages"
+LINEAGE_STRATEGIES = frozenset((S1_STRATEGY, S2_STRATEGY, S3_STRATEGY))
 DEFAULT_PREFIX_LENGTH = 256
 
 
@@ -106,8 +108,15 @@ def load_global_top_10(path: Path) -> list[int]:
     return parents
 
 
-def load_lineage_weights(path: Path, prefix_length: int = DEFAULT_PREFIX_LENGTH) -> list[tuple[int, int]]:
-    """Load S2 parent weights from an S1 top-ten file, preserving first-seen parent order."""
+def load_lineage_weights(
+    path: Path,
+    prefix_length: int = DEFAULT_PREFIX_LENGTH,
+    *,
+    expected_strategy: str | None = None,
+    expected_experiment_id: str | None = None,
+    completed_outcomes: frozenset[str] | None = None,
+) -> list[tuple[int, int]]:
+    """Load parent weights from a lineage top-ten file, preserving first-seen parent order."""
     if not path.exists():
         raise ValueError(f"source top-10 file is missing: {path}")
     try:
@@ -120,7 +129,9 @@ def load_lineage_weights(path: Path, prefix_length: int = DEFAULT_PREFIX_LENGTH)
         records = json.loads(contents)
     except json.JSONDecodeError as error:
         raise ValueError(f"malformed JSON in source top-10 file: {path}") from error
-    if not isinstance(records, list) or not records:
+    if not isinstance(records, list):
+        raise ValueError(f"source top-10 file is not a nonempty list: {path}")
+    if not records:
         raise ValueError(f"source top-10 file is empty: {path}")
     weights: OrderedDict[str, int] = OrderedDict()
     first_seen: dict[str, int] = {}
@@ -128,6 +139,12 @@ def load_lineage_weights(path: Path, prefix_length: int = DEFAULT_PREFIX_LENGTH)
     for record in records:
         if not isinstance(record, dict):
             raise ValueError(f"invalid descendant record in source top-10 file: {path}")
+        if expected_strategy is not None and record.get("strategy") != expected_strategy:
+            raise ValueError(f"source top-10 file contains a foreign strategy record: {path}")
+        if expected_experiment_id is not None and record.get("experiment_id") != expected_experiment_id:
+            raise ValueError(f"source top-10 file contains a foreign experiment record: {path}")
+        if completed_outcomes is not None and record.get("outcome") not in completed_outcomes:
+            raise ValueError(f"source top-10 file contains an incomplete or invalid outcome: {path}")
         if "parent_starting_integer" not in record or "prefix_length" not in record:
             raise ValueError(f"source top-10 file is missing lineage fields: {path}")
         parent = _validate_canonical_1000_digit(
@@ -219,7 +236,7 @@ def parity_prefix_candidate_records(
 
 def weighted_parity_prefix_candidate_records(
     count: int, parent_weights: list[tuple[int, int]], seed: str = "parity-prefix-v1",
-    prefix_length: int = DEFAULT_PREFIX_LENGTH,
+    prefix_length: int = DEFAULT_PREFIX_LENGTH, strategy_domain: str = S2_STRATEGY,
 ) -> Iterator[tuple[int, int]]:
     """Yield parity-prefix candidates proportionally allocated by productive lineage weight."""
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
@@ -229,7 +246,7 @@ def weighted_parity_prefix_candidate_records(
     parents = [parent for parent, _ in parent_weights]
     allocation = weighted_allocation(count, [weight for _, weight in parent_weights])
     yield from _parity_prefix_candidate_records_with_allocation(
-        parents, allocation, seed, prefix_length, S2_STRATEGY
+        parents, allocation, seed, prefix_length, strategy_domain
     )
 
 

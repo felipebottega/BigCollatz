@@ -30,3 +30,24 @@ weights, with floors first and any remainder distributed by largest fractional
 remainder, breaking ties by first parent order in the source file. The runner
 records the source file, prefix length, seed, productive lineage count, lineage
 weights, and final allocation in `summary.json`.
+
+
+## S3-recursive-weighted-lineages
+
+S3 repeats the S2 weighted-lineage process recursively using the most recent
+completed guided experiment as its lineage source. It reads
+`results/e003-s2-weighted-lineages-256/top_10.json`, validates that every source
+entry came from `e003-s2-weighted-lineages-256` with strategy
+`S2-parity-prefix-weighted-lineages` and a completed outcome, then groups entries
+by `parent_starting_integer`. Each parent's weight is the number of E003 top-10
+descendants it produced. Only those productive E003 parent lineages are used.
+
+Candidate generation remains the shared 256-decision parity-prefix generator:
+every candidate has exactly 1000 decimal digits, is distinct, excludes source
+parents, and preserves its assigned parent's first 256 unaccelerated parity
+decisions. Candidate quotas use the existing proportional largest-remainder
+allocation rule, with deterministic parent-order tie breaks. The runner records
+the E003 source file, prefix length, deterministic seed, productive lineage
+count, lineage weights, and final per-parent allocation in `summary.json`. This
+section describes the strategy only; it does not indicate that the real S3
+10,000-candidate experiment has been executed.
