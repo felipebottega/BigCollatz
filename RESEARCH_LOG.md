@@ -89,3 +89,20 @@
 - **Comparison:** P006 slightly beat P005 on maximum and p99 but still trailed E004's 27,707 maximum and found no exact repeated state.
 - **Conclusion:** inconclusive; residue targeting is competitive with suffix diversification at pilot scale but does not justify a full 10,000-candidate run without a stronger cell-ranking stage.
 - **Next decision:** continue with a compact productivity-ranked cell strategy that can compare parity, suffix, and residue cells under a single validation-bound runner path before allocating full-experiment scale.
+
+## P007/P008 — adaptive cross-family cell pilots
+
+- **Hypothesis:** compact productivity-ranked cells across parity-prefix, decimal-suffix, and residue families can identify reusable signal without compromising exact repeated-state detection.
+- **Shared evaluator/cycle rule:** every adaptive candidate used the single evaluator engine via `evaluate_with_metrics`; repeated states would be reconstructed canonically, independently replayed, persisted through `results/cycle_candidates.json`, and stop the pilot immediately on verified nontrivial discovery.
+- **Validation mapping:** parity-prefix cells required strategy `S1-parity-prefix-top10` and validation `parity_prefix`; decimal-suffix cells required `S5-decimal-suffix-top10` and `decimal_suffix`; residue cells required `S6-residue-class-top10` and `residue`.
+- **Stage A (`p007-adaptive-stage-a-300`):** seed `adaptive-stage-a-20260804`; 300 total candidates split evenly across three cells: parent-1 128-step parity prefix, parent-2 64-digit decimal suffix, and parent-3 residue modulo `2**128 + 1`.
+  - Parity cell: 100 reached one, 0 repeated states, maximum length 26,289, mean 23,967.33.
+  - Decimal-suffix cell: 100 reached one, 0 repeated states, maximum length 25,831, mean 24,130.15.
+  - Residue cell: 100 reached one, 0 repeated states, maximum length 26,416, mean 24,014.54.
+- **Stage B (`p008-adaptive-stage-b-300`):** seed `adaptive-stage-b-20260804`; deterministic allocation was 100/100/100 because Stage A scores were close enough that largest-remainder allocation preserved family diversity.
+  - Parity cell: 100 reached one, 0 repeated states, maximum length 26,413, mean 24,149.64.
+  - Decimal-suffix cell: 100 reached one, 0 repeated states, maximum length 26,343, mean 24,196.89.
+  - Residue cell: 100 reached one, 0 repeated states, maximum length 25,529, mean 23,794.93.
+- **Comparison:** Stage A/B maxima remained below P003 (26,969), P005 (25,749) was exceeded, P006 (25,906) was exceeded by parity/suffix cells, but all adaptive maxima remained below E003 (27,445) and E004 (27,707).
+- **Decision:** reject immediate full-experiment promotion; one 300-candidate parity/suffix signal is not convincing enough for exactly 10,000 candidates. The next hypothesis should broaden cell count or use E004 lineage-derived parent diversity while retaining the same validation-bound adaptive runner.
+- **Stopping reason:** correctness gate and two deterministic pilots completed; no nontrivial cycle was found and no full experiment was justified.
