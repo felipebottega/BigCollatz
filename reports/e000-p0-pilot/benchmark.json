@@ -1,52 +1,52 @@
 {
-  "average_evaluation_time_ms": 27.337089274999997,
-  "cpu_time_seconds": 17.092111801,
+  "average_evaluation_time_ms": 18.032001905,
+  "cpu_time_seconds": 10.903805607,
   "estimated_runtime_seconds": {
-    "1000": 36.95601454166667,
-    "10000": 369.56014541666667,
-    "100000": 3695.601454166667
+    "1000": 18.204847936666667,
+    "10000": 182.04847936666667,
+    "100000": 1820.4847936666667
   },
-  "peak_process_rss_kib": 27960,
+  "peak_process_rss_kib": 27616,
   "schema_version": 1,
   "throughput_by_decimal_digits": {
     "1000": {
-      "mean_steps": 23955.03,
-      "mean_wall_time_ms": 41.91790238,
+      "mean_steps": 24128.16,
+      "mean_wall_time_ms": 28.75115361,
       "trajectories": 100,
-      "trajectories_per_second": 23.8561555617612
+      "trajectories_per_second": 34.7812130798184
     },
     "500": {
-      "mean_steps": 12118.77,
-      "mean_wall_time_ms": 13.87903863,
+      "mean_steps": 12029.89,
+      "mean_wall_time_ms": 9.025926929999999,
       "trajectories": 100,
-      "trajectories_per_second": 72.05109998314055
+      "trajectories_per_second": 110.79194499971429
     },
     "600": {
-      "mean_steps": 14391.37,
-      "mean_wall_time_ms": 18.05377243,
+      "mean_steps": 14335.05,
+      "mean_wall_time_ms": 12.4841444,
       "trajectories": 100,
-      "trajectories_per_second": 55.39008558334863
+      "trajectories_per_second": 80.10160472030427
     },
     "700": {
-      "mean_steps": 16746.32,
-      "mean_wall_time_ms": 23.548482,
+      "mean_steps": 16766.4,
+      "mean_wall_time_ms": 15.38569363,
       "trajectories": 100,
-      "trajectories_per_second": 42.465582282543735
+      "trajectories_per_second": 64.99544473251025
     },
     "800": {
-      "mean_steps": 19338.5,
-      "mean_wall_time_ms": 28.66857402,
+      "mean_steps": 19212.15,
+      "mean_wall_time_ms": 19.41828356,
       "trajectories": 100,
-      "trajectories_per_second": 34.88140007599862
+      "trajectories_per_second": 51.497857517124444
     },
     "900": {
-      "mean_steps": 21592.78,
-      "mean_wall_time_ms": 37.95476619,
+      "mean_steps": 21577.02,
+      "mean_wall_time_ms": 23.1268093,
       "trajectories": 100,
-      "trajectories_per_second": 26.34715215986422
+      "trajectories_per_second": 43.23986015658459
     }
   },
   "trajectories": 600,
-  "trajectories_per_second": 27.05919489431236,
-  "wall_time_seconds": 22.173608725
+  "trajectories_per_second": 54.930423120200004,
+  "wall_time_seconds": 10.922908762
 }

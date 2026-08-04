@@ -9,17 +9,9 @@
     1000
   ],
   "experiment_id": "e000-p0-pilot",
-  "generated_utc": "2026-08-04T14:31:50.873629+00:00",
-  "hostname_sha256": "f1da5161b0d3c65dba9a9446836ad361e666be23ad5bc441220d2230eca2fac7",
-  "implementation": "CPython",
-  "logical_cpus": 3,
-  "machine": "x86_64",
   "per_digit": 100,
-  "platform": "Linux-6.12.13-x86_64-with-glibc2.39",
-  "python": "3.14.4 (main, May  1 2026, 05:51:55) [GCC 13.3.0]",
   "raw_file": "results/e000-p0-pilot/raw/part-00000.jsonl",
-  "raw_sha256": "2dbc1c7df598c6d6fd1c039db18b87cadabb13ee89c47783b29b4ac03840cd22",
   "schema_version": 1,
   "seed": "p0-baseline-v1",
-  "software_revision": "61eea19718ed7b44d9c2fc43dbba98e520c5a1e8"
+  "software_revision": "9dfb31b3a973c6afa3954f9d1e4e633dfaccfa7a"
 }

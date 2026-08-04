@@ -1,68 +1,21 @@
-# Prioritized Implementation Plan
+# TODO
 
-## P0 — correctness foundation (complete 2026-08-04)
+## Complete
 
-- [x] Create the Python package and typed evaluator result model matching raw
-  schema v1.
-- [x] Implement a scalar arbitrary-precision reference evaluator with explicit
-  `reached_one`, exact full-state-set repetition detection, maximum tracking,
-  and distinctly censored operational interruption reasons.
-- [x] Add hand-checked trajectory tests (`1`, `2`, `3`, `6`, `27`), an injected
-  transition function for nontrivial cycle tests, and interruption/safety-limit
-  boundary tests that reject mathematical classifications.
-- [x] Replace the planned batching-first detector with constant-memory Brent
-  production detection and compare every result field against the independent
-  scalar hash-set oracle over 5,000 starts. Division batching is deferred until
-  it can preserve Brent's exact logical-step semantics.
-- [x] Add record serialization/validation with decimal-string bigints.
-- [x] Add a deterministic baseline and run/save/analyze the 600-trajectory E000
-  pilot and digit-stratified benchmark.
+- [x] Exact arbitrary-precision evaluator with independent cycle-detection oracle.
+- [x] Strict schema-v1 record validation and malformed-record tests.
+- [x] Deterministic uniform baseline with rejection sampling and digit-stratum
+  domain separation.
+- [x] A 600-trajectory baseline pilot with raw JSONL output, top-10 starts, and
+  per-digit count/mean/median/p90/maximum/best-start summaries.
+- [x] Simplify documentation and remove infrastructure plans.
 
-**Exit gate:** passed. Tests cover exact bigint transitions, independent cycle
-algorithm equivalence, injected cycles, limits, and large-integer serialization.
+## Next small experiments
 
-## P1 — reproducible execution and persistence
+- [ ] Compare another simple control generator with S0 under the same digit and
+  candidate counts.
+- [ ] Add report comparisons only when a second strategy has actual results.
+- [ ] Profile only if evaluator runtime blocks a concrete experiment.
 
-- [ ] Define versioned TOML experiment configs and canonical JSONL manifests.
-- [ ] Implement deterministic sharding, atomic raw writes, rolling checksums,
-  checkpoints, resume validation, and fault-injection tests.
-- [ ] Capture git revision, command, Python/backend, OS/kernel, CPU, memory, and
-  effective limits; add periodic progress/ETA reporting.
-- [ ] Build streaming validator and summary generator with exact documented
-  percentile conventions.
-
-**Exit gate:** repeated generation is byte-identical and every simulated
-interruption resumes to the same output as an uninterrupted fixture.
-
-## P2 — controls and first guided generator
-
-- [ ] Implement S0 counter-based and low-discrepancy stratified controls.
-- [ ] Implement parity-word to residue-class construction with brute-force tests
-  at small `k`.
-- [ ] Implement S1 beam scoring and deterministic lifting into 500--1000 digits.
-- [ ] Create residue/digit-matched controls and manifest deduplication reports.
-
-## P3 — guided-strategy pilots, not full experiments
-
-- [x] Run and record E000 at 600 candidates.
-- [ ] Run E001 and E002 at 100--1,000 candidates.
-- [ ] Profile bigint transitions, batching, I/O, cache opportunities, beam
-  generation cost, and memory.
-- [ ] Set optional production safety limits and shard sizes from pilot evidence;
-  verify that every limit produces only a censored interruption record.
-- [ ] Recheck bibliography against primary sources when network access permits.
-
-## P4 — second construction and scale gate
-
-- [ ] Implement/test canonical inverse edges, deduplication, and S2 frontier.
-- [ ] Pilot S2 with generation cost included.
-- [ ] Independently replay every apparent repeated state; document that long
-  nonrepeating runs are not loop candidates.
-- [ ] Approve a 100,000-candidate experiment only after all earlier exit gates,
-  storage estimates, and frozen preregistration are complete.
-
-## Later
-
-- [ ] Evaluate bounded certified-suffix memoization and Brent cycle mode.
-- [ ] Implement S3/S4 held-out analysis, then S5 only if evidence supports it.
-- [ ] Consider a native backend only after profiling and differential fixtures.
+S1 is intentionally not implemented yet. Do not add sharding, checkpoints,
+resumable workers, persistent caches, complex manifests, or scheduler layers.

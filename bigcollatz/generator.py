@@ -7,13 +7,23 @@ from collections.abc import Iterator
 
 
 def baseline_candidates(count: int, digits: int, seed: str = "p0-baseline-v1") -> Iterator[int]:
-    """Expand SHA-256 counter blocks and map them uniformly into the digit range."""
-    if count < 0 or not 500 <= digits <= 1000:
+    """Sample the decimal stratum uniformly with domain-separated rejection sampling."""
+    if (not isinstance(count, int) or isinstance(count, bool) or count < 0 or
+            not isinstance(digits, int) or isinstance(digits, bool) or not 500 <= digits <= 1000):
         raise ValueError("count must be nonnegative and digits must be 500..1000")
     low, width = 10 ** (digits - 1), 9 * 10 ** (digits - 1)
+    byte_count = (width.bit_length() + 7) // 8
+    sample_space = 1 << (8 * byte_count)
+    acceptance_limit = sample_space - sample_space % width
     for ordinal in range(count):
-        material, block = bytearray(), 0
-        while len(material) * 8 < width.bit_length() + 128:
-            material.extend(hashlib.sha256(f"{seed}:{ordinal}:{block}".encode()).digest())
-            block += 1
-        yield low + int.from_bytes(material, "big") % width
+        attempt = 0
+        while True:
+            material = bytearray()
+            for block in range((byte_count + 31) // 32):
+                domain = f"{seed}:digits={digits}:ordinal={ordinal}:attempt={attempt}:block={block}"
+                material.extend(hashlib.sha256(domain.encode()).digest())
+            sample = int.from_bytes(material[:byte_count], "big")
+            if sample < acceptance_limit:
+                yield low + sample % width
+                break
+            attempt += 1
