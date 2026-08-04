@@ -230,3 +230,22 @@ class WeightedLineageGeneratorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ExplicitRecordGeneratorTests(unittest.TestCase):
+    def test_decimal_suffix_records_are_explicit_distinct_and_validate(self):
+        from bigcollatz.generator import decimal_suffix_candidate_records, validate_decimal_suffix, S5_STRATEGY
+        parents = [10**999 + 123456789, 2 * 10**999 + 987654321]
+        records = list(decimal_suffix_candidate_records(12, parents, "fixture", 9))
+        self.assertEqual(len({r.candidate for r in records}), 12)
+        self.assertTrue(all(len(str(r.candidate)) == 1000 for r in records))
+        self.assertTrue(all(r.strategy == S5_STRATEGY and r.validation_mode == "decimal_suffix" for r in records))
+        self.assertTrue(all(validate_decimal_suffix(r.candidate, r.parent, r.suffix_digits) for r in records))
+
+    def test_residue_records_are_explicit_distinct_and_validate(self):
+        from bigcollatz.generator import residue_candidate_records, validate_residue, S6_STRATEGY
+        parents = [10**999 + 123456789, 2 * 10**999 + 987654321]
+        records = list(residue_candidate_records(12, parents, "fixture", 257))
+        self.assertEqual(len({r.candidate for r in records}), 12)
+        self.assertTrue(all(len(str(r.candidate)) == 1000 for r in records))
+        self.assertTrue(all(r.strategy == S6_STRATEGY and r.validation_mode == "residue" for r in records))
+        self.assertTrue(all(validate_residue(r.candidate, r.residue_modulus, r.residue) for r in records))

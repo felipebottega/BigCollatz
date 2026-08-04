@@ -11,14 +11,15 @@ from typing import Any
 
 from .evaluator import evaluate
 from .generator import (
-    DEFAULT_PREFIX_LENGTH, S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, LINEAGE_STRATEGIES, balanced_allocation,
+    DEFAULT_PREFIX_LENGTH, S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, S5_STRATEGY, S6_STRATEGY, LINEAGE_STRATEGIES, CandidateRecord, balanced_allocation,
     baseline_candidates, load_global_top_10, load_lineage_weights, parity_prefix_candidate_records,
-    mixed_prefix_candidate_records, validate_parity_prefix, weighted_allocation, weighted_parity_prefix_candidate_records,
+    mixed_prefix_candidate_records, decimal_suffix_candidate_records, residue_candidate_records, validate_decimal_suffix, validate_parity_prefix, validate_residue, weighted_allocation, weighted_parity_prefix_candidate_records,
 )
 
 DEFAULT_CANDIDATE_COUNT = 10_000
 STRATEGY = S0_STRATEGY
-SUPPORTED_STRATEGIES = (S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY)
+SUPPORTED_STRATEGIES = (S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, S5_STRATEGY, S6_STRATEGY)
+STRATEGY_VALIDATION_MODES = {S1_STRATEGY: "parity_prefix", S2_STRATEGY: "parity_prefix", S3_STRATEGY: "parity_prefix", S4_STRATEGY: "parity_prefix", S5_STRATEGY: "decimal_suffix", S6_STRATEGY: "residue"}
 COMPLETED_OUTCOMES = frozenset(("reached_one", "repeated_state"))
 
 
@@ -56,7 +57,7 @@ def _update_global(output_root: Path, current: list[dict[str, Any]]) -> list[dic
 
 def _cycle_candidate_record(
     *, result: Any, candidate: int, experiment_id: str, strategy: str,
-    parent: int | None, prefix_length: int,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     record = {
         "starting_integer": str(candidate),
@@ -67,9 +68,8 @@ def _cycle_candidate_record(
         "experiment_id": experiment_id,
         "strategy": strategy,
     }
-    if strategy in LINEAGE_STRATEGIES:
-        record["parent_starting_integer"] = str(parent)
-        record["prefix_length"] = prefix_length
+    if metadata:
+        record.update(metadata)
     return record
 
 
@@ -85,6 +85,43 @@ def _persist_cycle_candidates(output_root: Path, records: list[dict[str, Any]]) 
     path.write_text(json.dumps(list(deduplicated.values()), indent=2, sort_keys=True) + "\n")
 
 
+
+def _normalize_candidate_record(record: Any, strategy: str, default_prefix_length: int) -> CandidateRecord:
+    if isinstance(record, CandidateRecord):
+        if record.strategy != strategy:
+            raise ValueError("candidate strategy does not match selected strategy")
+        return record
+    if len(record) == 3:
+        candidate, parent, candidate_prefix_length = record
+    else:
+        candidate, parent = record
+        candidate_prefix_length = default_prefix_length
+    mode = STRATEGY_VALIDATION_MODES.get(strategy)
+    return CandidateRecord(candidate, strategy, mode or "none", parent=parent, prefix_length=candidate_prefix_length)
+
+
+def _validate_candidate_record(record: CandidateRecord, strategy: str) -> None:
+    required_mode = STRATEGY_VALIDATION_MODES.get(strategy)
+    if required_mode is None:
+        return
+    if record.validation_mode != required_mode:
+        raise ValueError(f"candidate validation_mode {record.validation_mode!r} is incompatible with {strategy}")
+    if required_mode == "parity_prefix":
+        if record.parent is None or record.prefix_length is None:
+            raise ValueError("parity-prefix candidate metadata is incomplete")
+        if not validate_parity_prefix(record.candidate, record.parent, record.prefix_length):
+            raise ValueError("generated candidate does not reproduce its parent's parity prefix")
+    elif required_mode == "decimal_suffix":
+        if record.parent is None or record.suffix_digits is None:
+            raise ValueError("decimal-suffix candidate metadata is incomplete")
+        if not validate_decimal_suffix(record.candidate, record.parent, record.suffix_digits):
+            raise ValueError("generated candidate does not reproduce its parent's decimal suffix")
+    elif required_mode == "residue":
+        if record.residue_modulus is None or record.residue is None:
+            raise ValueError("residue candidate metadata is incomplete")
+        if not validate_residue(record.candidate, record.residue_modulus, record.residue):
+            raise ValueError("generated candidate does not match its residue class")
+
 def run_experiment(
     output_root: Path,
     *,
@@ -94,6 +131,7 @@ def run_experiment(
     strategy: str = S0_STRATEGY,
     prefix_length: int = DEFAULT_PREFIX_LENGTH,
     validate_candidates: bool = False,
+    update_global: bool = True,
 ) -> dict[str, Any]:
     """Evaluate distinct 1000-digit candidates and retain statistics and two top tens."""
     if not experiment_id or Path(experiment_id).name != experiment_id:
@@ -138,6 +176,38 @@ def run_experiment(
             ],
         })
         candidate_records = mixed_prefix_candidate_records(count, parents, seed, prefix_lengths)
+    elif strategy == S5_STRATEGY:
+        source = output_root / "results" / "global_top_10.json"
+        parents = load_global_top_10(source)
+        suffix_digits = 64
+        allocation = balanced_allocation(count, parents)
+        parameters.update({
+            "source_global_top_10_file": "results/global_top_10.json",
+            "suffix_digits": suffix_digits,
+            "deterministic_seed": seed,
+            "required_validation_mode": STRATEGY_VALIDATION_MODES[strategy],
+            "allocation_per_parent": [
+                {"parent": str(parent), "candidate_count": allocated}
+                for parent, allocated in zip(parents, allocation)
+            ],
+        })
+        candidate_records = decimal_suffix_candidate_records(count, parents, seed, suffix_digits)
+    elif strategy == S6_STRATEGY:
+        source = output_root / "results" / "global_top_10.json"
+        parents = load_global_top_10(source)
+        residue_modulus = 2**128 + 1
+        allocation = balanced_allocation(count, parents)
+        parameters.update({
+            "source_global_top_10_file": "results/global_top_10.json",
+            "residue_modulus": residue_modulus,
+            "deterministic_seed": seed,
+            "required_validation_mode": STRATEGY_VALIDATION_MODES[strategy],
+            "allocation_per_parent": [
+                {"parent": str(parent), "residue": parent % residue_modulus, "candidate_count": allocated}
+                for parent, allocated in zip(parents, allocation)
+            ],
+        })
+        candidate_records = residue_candidate_records(count, parents, seed, residue_modulus)
     elif strategy in (S2_STRATEGY, S3_STRATEGY):
         if strategy == S2_STRATEGY:
             source_relative = "results/e002-s1-parity-prefix-256/top_10.json"
@@ -179,15 +249,13 @@ def run_experiment(
     cycle_candidates: list[dict[str, Any]] = []
     started = time.perf_counter_ns()
 
-    for record in candidate_records:
-        if len(record) == 3:
-            candidate, parent, candidate_prefix_length = record
-        else:
-            candidate, parent = record
-            candidate_prefix_length = prefix_length
-        if validate_candidates and parent is not None and not validate_parity_prefix(
-                candidate, parent, candidate_prefix_length):
-            raise ValueError("generated candidate does not reproduce its parent's parity prefix")
+    for raw_record in candidate_records:
+        record = _normalize_candidate_record(raw_record, strategy, prefix_length)
+        if validate_candidates:
+            _validate_candidate_record(record, strategy)
+        candidate = record.candidate
+        metadata = record.metadata() if strategy in LINEAGE_STRATEGIES else {}
+        metadata.pop("strategy", None)
         trajectory_started = time.perf_counter_ns()
         result = evaluate(candidate)
         runtime_ns = time.perf_counter_ns() - trajectory_started
@@ -195,7 +263,7 @@ def run_experiment(
         if result.outcome == "repeated_state":
             cycle_candidates.append(_cycle_candidate_record(
                 result=result, candidate=candidate, experiment_id=experiment_id,
-                strategy=strategy, parent=parent, prefix_length=candidate_prefix_length,
+                strategy=strategy, metadata=metadata,
             ))
         if result.outcome not in COMPLETED_OUTCOMES:
             continue
@@ -209,9 +277,8 @@ def run_experiment(
             "strategy": strategy,
             "experiment_id": experiment_id,
         }
-        if strategy in LINEAGE_STRATEGIES:
-            entry["parent_starting_integer"] = str(parent)
-            entry["prefix_length"] = candidate_prefix_length
+        if metadata:
+            entry.update(metadata)
         keyed = (_top_key(entry), entry)
         if len(top_heap) < 10:
             heapq.heappush(top_heap, keyed)
@@ -268,5 +335,5 @@ def run_experiment(
         lines += ["", "## Best starting integer (complete)", "", "```text", top_10[0]["starting_integer"], "```", ""]
     (result_dir / "summary.md").write_text("\n".join(lines))
     _persist_cycle_candidates(output_root, cycle_candidates)
-    global_top = _update_global(output_root, top_10)
+    global_top = _update_global(output_root, top_10) if update_global else []
     return {"summary": summary, "top_10": top_10, "global_top_10": global_top}
