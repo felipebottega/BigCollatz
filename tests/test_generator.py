@@ -17,6 +17,17 @@ class GeneratorTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 list(baseline_candidates(1, digits))
 
+    def test_digit_strata_use_domain_separated_streams(self):
+        # The first 500 digits are not a shared prefix of another stratum's hash stream.
+        a = list(baseline_candidates(3, 500, "same-seed"))
+        b = list(baseline_candidates(3, 501, "same-seed"))
+        self.assertNotEqual([str(value)[:100] for value in a],
+                            [str(value)[:100] for value in b])
+
+    def test_rejection_sampling_is_deterministic(self):
+        expected = list(baseline_candidates(5, 500, "rejection-fixture"))
+        self.assertEqual(expected, list(baseline_candidates(5, 500, "rejection-fixture")))
+
 
 if __name__ == "__main__":
     unittest.main()

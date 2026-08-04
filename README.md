@@ -1,73 +1,36 @@
 # BigCollatz
 
-BigCollatz is a reproducible experimental system for **finding unusually long
-Collatz trajectories whose starting values have 500--1000 decimal digits**.
-It is not a proof project, a random-number sweep, or a consecutive-integer
-scanner. The search will compare deterministic, structurally motivated
-generators under a common compute budget.
+BigCollatz is a small experimental Python program for comparing ways to choose
+500--1000 digit starting integers for Collatz trajectories. It favors exact,
+readable code and plain JSONL/JSON reports over execution infrastructure.
 
-For an integer `n > 0`, one step is
+For `n > 0`, one unaccelerated step is `n / 2` when even and `3n + 1` when odd.
+Evaluation continues until `1` is reached or an exact state repeats. Optional
+safety limits produce censored records, never mathematical conclusions.
 
-```text
-n -> n / 2       when n is even
-n -> 3*n + 1     when n is odd
-```
+## What is included
 
-All states will use arbitrary-precision integers. Exact evaluation continues
-until the trajectory first reaches `1` or an exact integer repeats within that
-trajectory. The familiar `1 -> 4 -> 2 -> 1` cycle is therefore recorded as
-`reached_one`, never as a discovery. An operational interruption may stop a
-computation early, but produces only an interrupted/censored record—not a
-claim of convergence, divergence, or cycling.
+- a constant-memory exact evaluator and a hash-set test oracle;
+- a deterministic, uniformly sampled baseline generator;
+- a sequential six-stratum pilot runner;
+- append-only JSONL output, basic benchmarks, and statistical reports;
+- unit tests and strategy notes.
 
-## Status
+There is deliberately no sharding, scheduler, checkpoint orchestration,
+persistent cache, complex manifest, or multi-worker pipeline.
 
-Phase P0 is complete. The package now has an arbitrary-precision evaluator,
-production Brent cycle detection, an independent hash-set oracle, schema
-validation, and a deterministic 500--1000 digit baseline. E000 evaluated 600
-trajectories and preserved raw data, benchmarks, metadata, and analysis. No
-100,000-candidate experiment has been run.
-
-## Planned workflow
-
-1. Generate a deterministic manifest of candidates and provenance.
-2. Evaluate it with resumable workers and exact cycle detection.
-3. Preserve append-only raw records in `results/<experiment-id>/`.
-4. Validate and summarize those records into `reports/<experiment-id>/`.
-5. Compare quality and cost, analyze structural features, and register the
-   next strategy before running it.
-
-Every experiment will be reproducible from a committed configuration, seed
-manifest, software revision, and documented execution environment. See
-[`RESEARCH_PLAN.md`](RESEARCH_PLAN.md), [`ARCHITECTURE.md`](ARCHITECTURE.md),
-and [`STRATEGIES.md`](STRATEGIES.md) for the full design.
-
-## Command-line interface
+## Run
 
 ```bash
+python -m unittest discover -v
 python -m bigcollatz pilot --per-digit 100
 ```
 
-General-purpose manifest, sharding, and resume commands remain P1 work.
+The pilot writes raw records to `results/e000-p0-pilot/raw/part-00000.jsonl`
+and summaries to `reports/e000-p0-pilot/`. Each record retains only useful
+result and reproducibility fields: start, digit count, steps, maximum, outcome,
+runtime, strategy, and small evaluator/seed identifiers.
 
-## Repository map
-
-| Path | Purpose |
-| --- | --- |
-| `RESEARCH_PLAN.md` | hypotheses, experimental protocol, and analysis plan |
-| `ARCHITECTURE.md` | components, data model, correctness, and checkpointing |
-| `STRATEGIES.md` | strategy registry, including rejected and untested ideas |
-| `EXPERIMENTS.md` | append-only experiment ledger |
-| `DECISIONS.md` | consequential decisions and rationale |
-| `TODO.md` | prioritized implementation plan |
-| `results/` | raw machine-readable outputs (large artifacts stay uncommitted) |
-| `reports/` | derived summaries and plots |
-
-## Scope and safety limits
-
-Candidates must be positive and have 500--1000 decimal digits. Evaluations may
-have configurable operational safety limits, and may also be interrupted by a
-user stop, process shutdown, or resource exhaustion. These events are reported
-only as censored computations with the applicable interruption reason; they
-are never mathematical outcomes. Conclusions are empirical associations, not
-proofs about Collatz.
+See `ARCHITECTURE.md` for the complete program flow, `STRATEGIES.md` for search
+ideas, and `EXPERIMENTS.md` for completed runs. S1 remains a note and has not
+been implemented.

@@ -74,6 +74,50 @@ class EvaluatorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             invalid.validate()
 
+    def test_deserialization_rejects_inconsistent_records(self):
+        record = evaluate(27).to_record()
+        mutations = {
+            "outcome": "repeated_state",
+            "stopping_reason": "error",
+            "reached_one": False,
+            "repeated_state_found": True,
+            "censored": True,
+            "decimal_digits": 99,
+            "maximum_bit_length": 1,
+            "schema_version": 2,
+        }
+        for field, value in mutations.items():
+            with self.subTest(field=field):
+                malformed = dict(record)
+                malformed[field] = value
+                with self.assertRaises(ValueError):
+                    EvaluationResult.from_record(malformed)
+
+    def test_deserialization_rejects_malformed_types_and_decimals(self):
+        record = evaluate(3).to_record()
+        mutations = {
+            "start": "03", "maximum_integer": "+16", "total_steps_executed": "7",
+            "decimal_digits": True, "maximum_bit_length": 5.0, "reached_one": 1,
+            "schema_version": True,
+        }
+        for field, value in mutations.items():
+            with self.subTest(field=field):
+                malformed = dict(record)
+                malformed[field] = value
+                with self.assertRaises(ValueError):
+                    EvaluationResult.from_record(malformed)
+
+    def test_cycle_record_validation(self):
+        result = EvaluationResult(10, 5, "repeated_state", 14, 12, 2, 3, "repeated_state")
+        record = result.to_record()
+        self.assertEqual(EvaluationResult.from_record(record), result)
+        for field, value in (("cycle_entry_step", -1), ("cycle_period", 0),
+                             ("repeated_state", "012")):
+            malformed = dict(record)
+            malformed[field] = value
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                EvaluationResult.from_record(malformed)
+
 
 if __name__ == "__main__":
     unittest.main()
