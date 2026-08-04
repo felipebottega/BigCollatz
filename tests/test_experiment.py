@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from bigcollatz.experiment import DEFAULT_CANDIDATE_COUNT, STRATEGY, run_experiment
+from bigcollatz.generator import S1_STRATEGY
 from bigcollatz.model import EvaluationResult
 
 
@@ -35,6 +36,28 @@ class ExperimentTests(unittest.TestCase):
     def test_default_scope(self):
         self.assertEqual(DEFAULT_CANDIDATE_COUNT, 10_000)
         self.assertEqual(STRATEGY, "S0-uniform-deterministic")
+
+    @patch("bigcollatz.experiment.evaluate", side_effect=interrupted_evaluate)
+    def test_guided_strategy_records_generation_parameters(self, _evaluate):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "results/global_top_10.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps([
+                {"starting_integer": "27"}, {"starting_integer": "97"},
+            ]))
+            result = run_experiment(
+                root, experiment_id="guided", count=5, seed="fixture",
+                strategy=S1_STRATEGY, validate_candidates=True,
+            )
+            parameters = result["summary"]["strategy"]["parameters"]
+            self.assertEqual(parameters["prefix_length"], 256)
+            self.assertEqual(parameters["source_global_top_10_file"],
+                             "results/global_top_10.json")
+            self.assertEqual(parameters["number_of_parents_used"], 2)
+            self.assertEqual(parameters["deterministic_seed"], "fixture")
+            self.assertEqual([item["candidate_count"]
+                              for item in parameters["allocation_per_parent"]], [3, 2])
 
     @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
     @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)
