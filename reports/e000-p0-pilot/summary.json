@@ -1,0 +1,19 @@
+{
+  "best_record_id": "d1000-00093",
+  "count": 600,
+  "experiment_id": "e000-p0-pilot",
+  "maximum_excursion_digits": 4,
+  "outcomes": {
+    "interrupted": 0,
+    "reached_one": 600,
+    "repeated_state": 0
+  },
+  "raw_sha256": "2dbc1c7df598c6d6fd1c039db18b87cadabb13ee89c47783b29b4ac03840cd22",
+  "schema_version": 1,
+  "steps": {
+    "maximum": 25678,
+    "mean": 18023.795,
+    "median": 18078.5,
+    "p90_linear_interpolation": 23761.2
+  }
+}

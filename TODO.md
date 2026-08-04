@@ -1,21 +1,25 @@
 # Prioritized Implementation Plan
 
-## P0 — correctness foundation (exact next step)
+## P0 — correctness foundation (complete 2026-08-04)
 
-- [ ] Create the Python package and typed evaluator result model matching raw
+- [x] Create the Python package and typed evaluator result model matching raw
   schema v1.
-- [ ] Implement a scalar arbitrary-precision reference evaluator with explicit
+- [x] Implement a scalar arbitrary-precision reference evaluator with explicit
   `reached_one`, exact full-state-set repetition detection, maximum tracking,
   and distinctly censored operational interruption reasons.
-- [ ] Add hand-checked trajectory tests (`1`, `2`, `3`, `6`, `27`), an injected
+- [x] Add hand-checked trajectory tests (`1`, `2`, `3`, `6`, `27`), an injected
   transition function for nontrivial cycle tests, and interruption/safety-limit
   boundary tests that reject mathematical classifications.
-- [ ] Implement the trailing-zero batched evaluator and property-test every
-  field against the scalar reference.
-- [ ] Add record serialization/validation with decimal-string bigints.
+- [x] Replace the planned batching-first detector with constant-memory Brent
+  production detection and compare every result field against the independent
+  scalar hash-set oracle over 5,000 starts. Division batching is deferred until
+  it can preserve Brent's exact logical-step semantics.
+- [x] Add record serialization/validation with decimal-string bigints.
+- [x] Add a deterministic baseline and run/save/analyze the 600-trajectory E000
+  pilot and digit-stratified benchmark.
 
-**Exit gate:** correctness suite passes, including deliberate hash-collision and
-large-integer serialization cases. No large experiment may precede this gate.
+**Exit gate:** passed. Tests cover exact bigint transitions, independent cycle
+algorithm equivalence, injected cycles, limits, and large-integer serialization.
 
 ## P1 — reproducible execution and persistence
 
@@ -38,9 +42,10 @@ interruption resumes to the same output as an uninterrupted fixture.
 - [ ] Implement S1 beam scoring and deterministic lifting into 500--1000 digits.
 - [ ] Create residue/digit-matched controls and manifest deduplication reports.
 
-## P3 — pilots, not full experiments
+## P3 — guided-strategy pilots, not full experiments
 
-- [ ] Run and record E000, then E001 and E002 at 100--1,000 candidates.
+- [x] Run and record E000 at 600 candidates.
+- [ ] Run E001 and E002 at 100--1,000 candidates.
 - [ ] Profile bigint transitions, batching, I/O, cache opportunities, beam
   generation cost, and memory.
 - [ ] Set optional production safety limits and shard sizes from pilot evidence;
