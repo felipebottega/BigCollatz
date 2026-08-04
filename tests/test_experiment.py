@@ -44,7 +44,8 @@ class ExperimentTests(unittest.TestCase):
             source = root / "results/global_top_10.json"
             source.parent.mkdir(parents=True)
             source.write_text(json.dumps([
-                {"starting_integer": "27"}, {"starting_integer": "97"},
+                {"starting_integer": "1" + "0" * 999},
+                {"starting_integer": "2" + "0" * 999},
             ]))
             result = run_experiment(
                 root, experiment_id="guided", count=5, seed="fixture",
@@ -77,6 +78,50 @@ class ExperimentTests(unittest.TestCase):
             self.assertIn("…", report)
             self.assertIn(result["top_10"][0]["starting_integer"], report)
             self.assertFalse(any(path.suffix in {".jsonl", ".csv"} for path in root.rglob("*")))
+            self.assertTrue(all("parent_starting_integer" not in entry
+                                and "prefix_length" not in entry for entry in result["top_10"]))
+            self.assertNotIn("Parent (abbreviated)", report)
+
+    @patch("bigcollatz.experiment.parity_prefix_candidate_records")
+    @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)
+    def test_guided_winner_lineage_survives_outputs_and_global_merge(
+            self, _evaluate, candidate_records):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parents = [10**999 + 101, 2 * 10**999 + 202]
+            candidates = [10**999 + ordinal for ordinal in range(4)]
+            candidate_records.return_value = iter([
+                (candidate, parents[index % 2]) for index, candidate in enumerate(candidates)
+            ])
+            source = root / "results/global_top_10.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps([
+                {"starting_integer": str(parent)} for parent in parents
+            ]))
+
+            result = run_experiment(
+                root, experiment_id="guided-lineage", count=4, seed="fixture",
+                strategy=S1_STRATEGY, prefix_length=17,
+            )
+
+            expected_parents = {
+                str(candidate): str(parents[index % 2])
+                for index, candidate in enumerate(candidates)
+            }
+            for entry in result["top_10"]:
+                self.assertEqual(entry["parent_starting_integer"],
+                                 expected_parents[entry["starting_integer"]])
+                self.assertEqual(entry["prefix_length"], 17)
+            stored = json.loads((root / "results/guided-lineage/top_10.json").read_text())
+            self.assertEqual(stored, result["top_10"])
+            persistent_global = json.loads(source.read_text())
+            self.assertEqual(persistent_global, result["global_top_10"])
+            self.assertTrue(all("parent_starting_integer" in entry
+                                and entry["prefix_length"] == 17
+                                for entry in persistent_global))
+            report = (root / "results/guided-lineage/summary.md").read_text()
+            self.assertIn("Parent (abbreviated)", report)
+            self.assertIn("…", report)
 
     @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
     @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)

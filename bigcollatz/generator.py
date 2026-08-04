@@ -70,23 +70,36 @@ def validate_parity_prefix(candidate: int, parent: int,
 
 
 def load_global_top_10(path: Path) -> list[int]:
-    """Load distinct positive starting integers from a persistent top-ten file."""
+    """Load distinct canonical 1000-digit parents from a persistent top-ten file."""
     if not path.exists():
         raise ValueError(f"global top-10 file is missing: {path}")
     try:
-        records = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as error:
+        contents = path.read_text()
+    except OSError as error:
         raise ValueError(f"cannot read global top-10 file: {path}") from error
+    if not contents.strip():
+        raise ValueError(f"global top-10 file is empty: {path}")
+    try:
+        records = json.loads(contents)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"malformed JSON in global top-10 file: {path}") from error
     if not isinstance(records, list) or not records:
         raise ValueError(f"global top-10 file is empty: {path}")
     parents: list[int] = []
+    seen: set[str] = set()
     for record in records:
-        try:
-            parent = int(record["starting_integer"])
-        except (KeyError, TypeError, ValueError) as error:
-            raise ValueError(f"invalid parent in global top-10 file: {path}") from error
-        if parent <= 0 or parent in parents:
-            raise ValueError(f"invalid or duplicate parent in global top-10 file: {path}")
+        if not isinstance(record, dict):
+            raise ValueError(f"invalid parent record in global top-10 file: {path}")
+        value = record.get("starting_integer")
+        if (not isinstance(value, str) or len(value) != 1000
+                or value[0] == "0" or not value.isascii() or not value.isdecimal()):
+            raise ValueError(
+                f"invalid parent in global top-10 file (expected canonical 1000-digit decimal): {path}"
+            )
+        if value in seen:
+            raise ValueError(f"duplicate parent in global top-10 file: {path}")
+        seen.add(value)
+        parent = int(value)
         parents.append(parent)
     return parents
 
