@@ -6,7 +6,7 @@ from pathlib import Path
 from bigcollatz.generator import (
     balanced_allocation, baseline_candidates, load_global_top_10, load_lineage_weights,
     parity_prefix_candidate_records, parity_prefix_candidates, validate_parity_prefix,
-    weighted_allocation, weighted_parity_prefix_candidate_records,
+    S2_STRATEGY, weighted_allocation, weighted_parity_prefix_candidate_records,
 )
 
 
@@ -99,6 +99,10 @@ class WeightedLineageGeneratorTests(unittest.TestCase):
         self.assertEqual(weighted_allocation(10_000, [3, 3, 2, 1, 1]),
                          [3000, 3000, 2000, 1000, 1000])
 
+    def test_e003_style_weights_allocate_10000_exactly(self):
+        self.assertEqual(weighted_allocation(10_000, [4, 4, 1, 1]),
+                         [4000, 4000, 1000, 1000])
+
     def test_weighted_allocation_sums_exactly_and_remainders_are_deterministic(self):
         for count in range(25):
             self.assertEqual(sum(weighted_allocation(count, [1, 1, 1])), count)
@@ -116,6 +120,30 @@ class WeightedLineageGeneratorTests(unittest.TestCase):
                 {"parent_starting_integer": parent_b, "prefix_length": 256},
             ]))
             self.assertEqual(load_lineage_weights(path), [(int(parent_b), 2), (int(parent_a), 1)])
+
+    def test_s3_lineage_weights_are_derived_and_validated(self):
+        parents = ["1" + "0" * 999, "2" + "0" * 999, "3" + "0" * 999, "4" + "0" * 999]
+        records = []
+        for parent, copies in zip(parents, [1, 4, 1, 4]):
+            records.extend({
+                "parent_starting_integer": parent,
+                "prefix_length": 256,
+                "strategy": S2_STRATEGY,
+                "experiment_id": "e003-s2-weighted-lineages-256",
+                "outcome": "reached_one",
+            } for _ in range(copies))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "top_10.json"
+            path.write_text(json.dumps(records))
+            weights = load_lineage_weights(
+                path, expected_strategy=S2_STRATEGY,
+                expected_experiment_id="e003-s2-weighted-lineages-256",
+                completed_outcomes=frozenset(("reached_one", "repeated_state")),
+            )
+            self.assertEqual(weights, [(int(parents[1]), 4), (int(parents[3]), 4),
+                                       (int(parents[0]), 1), (int(parents[2]), 1)])
+            self.assertEqual(weighted_allocation(10_000, [weight for _, weight in weights]),
+                             [4000, 4000, 1000, 1000])
 
     def test_weighted_candidates_properties_parity_and_determinism(self):
         parents = [(10**999 + 12345, 2), (2 * 10**999 + 54321, 1)]
@@ -141,6 +169,7 @@ class WeightedLineageGeneratorTests(unittest.TestCase):
             (json.dumps([{"parent_starting_integer": "1" + "0" * 998, "prefix_length": 256}]), "1000-digit"),
             (json.dumps([{"parent_starting_integer": "0" + "1" * 999, "prefix_length": 256}]), "canonical"),
             (json.dumps([{"parent_starting_integer": valid_parent, "prefix_length": 255}]), "does not match requested"),
+            (json.dumps({"parent_starting_integer": valid_parent, "prefix_length": 256}), "empty"),
             (json.dumps([
                 {"parent_starting_integer": valid_parent, "prefix_length": 256},
                 {"parent_starting_integer": valid_parent, "prefix_length": 255},
@@ -157,6 +186,32 @@ class WeightedLineageGeneratorTests(unittest.TestCase):
                         path.write_text(contents)
                     with self.assertRaisesRegex(ValueError, message):
                         load_lineage_weights(path)
+
+    def test_s3_foreign_and_incomplete_source_records_are_rejected(self):
+        valid_parent = "9" * 1000
+        base = {
+            "parent_starting_integer": valid_parent,
+            "prefix_length": 256,
+            "strategy": S2_STRATEGY,
+            "experiment_id": "e003-s2-weighted-lineages-256",
+            "outcome": "reached_one",
+        }
+        cases = [
+            ({**base, "strategy": "S1-parity-prefix-top10"}, "foreign strategy"),
+            ({**base, "experiment_id": "other"}, "foreign experiment"),
+            ({**base, "outcome": "interrupted"}, "incomplete or invalid outcome"),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "top_10.json"
+            for record, message in cases:
+                with self.subTest(message=message):
+                    path.write_text(json.dumps([record]))
+                    with self.assertRaisesRegex(ValueError, message):
+                        load_lineage_weights(
+                            path, expected_strategy=S2_STRATEGY,
+                            expected_experiment_id="e003-s2-weighted-lineages-256",
+                            completed_outcomes=frozenset(("reached_one", "repeated_state")),
+                        )
 
 
 if __name__ == "__main__":

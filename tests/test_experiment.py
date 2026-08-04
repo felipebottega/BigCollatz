@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from bigcollatz.experiment import DEFAULT_CANDIDATE_COUNT, STRATEGY, run_experiment
-from bigcollatz.generator import S1_STRATEGY, S2_STRATEGY
+from bigcollatz.generator import S1_STRATEGY, S2_STRATEGY, S3_STRATEGY
 from bigcollatz.model import EvaluationResult
 
 
@@ -174,6 +174,47 @@ class ExperimentTests(unittest.TestCase):
             report = (root / "results/s2-lineage/summary.md").read_text()
             self.assertIn("Parent (abbreviated)", report)
 
+
+    @patch("bigcollatz.experiment.weighted_parity_prefix_candidate_records")
+    @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)
+    def test_s3_records_parameters_lineage_outputs_and_report(self, _evaluate, candidate_records):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parents = [10**999 + 101, 2 * 10**999 + 202, 3 * 10**999 + 303, 4 * 10**999 + 404]
+            candidates = [10**999 + ordinal for ordinal in range(4)]
+            candidate_records.return_value = iter([
+                (candidate, parents[index]) for index, candidate in enumerate(candidates)
+            ])
+            source = root / "results/e003-s2-weighted-lineages-256/top_10.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps([
+                {"parent_starting_integer": str(parent), "prefix_length": 256,
+                 "strategy": S2_STRATEGY, "experiment_id": "e003-s2-weighted-lineages-256",
+                 "outcome": "reached_one"}
+                for parent in [parents[0]] * 4 + [parents[1]] * 4 + [parents[2], parents[3]]
+            ]))
+
+            result = run_experiment(root, experiment_id="s3-lineage", count=10_000,
+                                    seed="fixture", strategy=S3_STRATEGY)
+
+            parameters = result["summary"]["strategy"]["parameters"]
+            self.assertEqual(parameters["source_top_10_file"],
+                             "results/e003-s2-weighted-lineages-256/top_10.json")
+            self.assertEqual(parameters["prefix_length"], 256)
+            self.assertEqual(parameters["deterministic_seed"], "fixture")
+            self.assertEqual(parameters["number_of_productive_parent_lineages"], 4)
+            self.assertEqual([item["weight"] for item in parameters["lineage_weights"]], [4, 4, 1, 1])
+            self.assertEqual([item["candidate_count"] for item in parameters["allocation_per_parent"]],
+                             [4000, 4000, 1000, 1000])
+            candidate_records.assert_called_once_with(10_000, [(parents[0], 4), (parents[1], 4),
+                                                              (parents[2], 1), (parents[3], 1)],
+                                                      "fixture", 256, S3_STRATEGY)
+            self.assertTrue(all("parent_starting_integer" in entry and entry["prefix_length"] == 256
+                                for entry in result["top_10"]))
+            self.assertTrue(all("parent_starting_integer" in entry and entry["prefix_length"] == 256
+                                for entry in result["global_top_10"]))
+            self.assertIn("Parent (abbreviated)", (root / "results/s3-lineage/summary.md").read_text())
+
     @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
     @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)
     def test_global_top_ten_is_merged_and_deduplicated(self, _evaluate, _candidates):
@@ -280,6 +321,26 @@ class CycleCandidatePersistenceTests(unittest.TestCase):
             self.assertEqual(record["parent_starting_integer"], str(parent))
             self.assertEqual(record["prefix_length"], 256)
 
+
+    @patch("bigcollatz.experiment.weighted_parity_prefix_candidate_records")
+    @patch("bigcollatz.experiment.evaluate", side_effect=duplicate_repeated_evaluate)
+    def test_s3_cycle_record_preserves_lineage(self, _evaluate, candidate_records):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parent = 10**999 + 100
+            candidate_records.return_value = iter([(10**999, parent)])
+            source = root / "results/e003-s2-weighted-lineages-256/top_10.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps([{
+                "parent_starting_integer": str(parent), "prefix_length": 256,
+                "strategy": S2_STRATEGY, "experiment_id": "e003-s2-weighted-lineages-256",
+                "outcome": "reached_one",
+            }]))
+            run_experiment(root, experiment_id="s3-cycles", count=1, strategy=S3_STRATEGY)
+            record = json.loads((root / "results/cycle_candidates.json").read_text())[0]
+            self.assertEqual(record["parent_starting_integer"], str(parent))
+            self.assertEqual(record["prefix_length"], 256)
+
     @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
     @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)
     def test_no_repeated_state_does_not_create_or_modify_cycle_file(self, _evaluate, _candidates):
@@ -294,3 +355,10 @@ class CycleCandidatePersistenceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EvaluatorUseTests(unittest.TestCase):
+    def test_runner_imports_common_exact_evaluator_for_all_strategies(self):
+        import bigcollatz.experiment as experiment
+        import bigcollatz.evaluator as evaluator
+        self.assertIs(experiment.evaluate, evaluator.evaluate)
