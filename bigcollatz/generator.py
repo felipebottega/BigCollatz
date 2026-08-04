@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from collections import OrderedDict
 from collections.abc import Iterator
 from pathlib import Path
@@ -13,8 +14,54 @@ S1_STRATEGY = "S1-parity-prefix-top10"
 S2_STRATEGY = "S2-parity-prefix-weighted-lineages"
 S3_STRATEGY = "S3-recursive-weighted-lineages"
 S4_STRATEGY = "S4-diversified-mixed-prefix-top10"
-LINEAGE_STRATEGIES = frozenset((S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY))
+S5_STRATEGY = "S5-decimal-suffix-top10"
+S6_STRATEGY = "S6-residue-class-top10"
+LINEAGE_STRATEGIES = frozenset((S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, S5_STRATEGY, S6_STRATEGY))
 DEFAULT_PREFIX_LENGTH = 256
+
+
+@dataclass(frozen=True)
+class CandidateRecord:
+    """Explicit generated candidate plus strategy-specific validation metadata."""
+
+    candidate: int
+    strategy: str
+    validation_mode: str
+    parent: int | None = None
+    prefix_length: int | None = None
+    suffix_digits: int | None = None
+    residue_modulus: int | None = None
+    residue: int | None = None
+
+    def metadata(self) -> dict[str, int | str]:
+        data: dict[str, int | str] = {
+            "strategy": self.strategy,
+            "validation_mode": self.validation_mode,
+        }
+        if self.parent is not None:
+            data["parent_starting_integer"] = str(self.parent)
+        if self.prefix_length is not None:
+            data["prefix_length"] = self.prefix_length
+        if self.suffix_digits is not None:
+            data["suffix_digits"] = self.suffix_digits
+        if self.residue_modulus is not None:
+            data["residue_modulus"] = self.residue_modulus
+        if self.residue is not None:
+            data["residue"] = self.residue
+        return data
+
+
+def validate_decimal_suffix(candidate: int, parent: int, suffix_digits: int) -> bool:
+    if suffix_digits < 1:
+        raise ValueError("suffix_digits must be positive")
+    modulus = 10 ** suffix_digits
+    return candidate % modulus == parent % modulus
+
+
+def validate_residue(candidate: int, residue_modulus: int, residue: int) -> bool:
+    if residue_modulus < 2 or residue < 0 or residue >= residue_modulus:
+        raise ValueError("invalid residue metadata")
+    return candidate % residue_modulus == residue
 
 
 def _sample_below(width: int, seed: bytes, domain: bytes, attempt: int) -> int | None:
@@ -294,3 +341,74 @@ def mixed_prefix_candidate_records(
             seen.add(candidate)
             produced += 1
             yield candidate, parent, prefix_length
+
+
+def decimal_suffix_candidate_records(
+    count: int, parents: list[int], seed: str = "decimal-suffix-v1", suffix_digits: int = 64,
+) -> Iterator[CandidateRecord]:
+    """Yield candidates preserving each assigned parent decimal suffix."""
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("count must be nonnegative")
+    if not parents:
+        raise ValueError("parents must be nonempty")
+    if not isinstance(suffix_digits, int) or isinstance(suffix_digits, bool) or suffix_digits < 1:
+        raise ValueError("suffix_digits must be a positive integer")
+    modulus = 10 ** suffix_digits
+    allocation = balanced_allocation(count, parents)
+    low, high = 10**999, 10**1000 - 1
+    excluded = set(parents)
+    seen: set[int] = set()
+    seed_bytes = seed.encode()
+    for parent_index, (parent, quota) in enumerate(zip(parents, allocation)):
+        residue = parent % modulus
+        quotient_low = (low - residue + modulus - 1) // modulus
+        quotient_high = (high - residue) // modulus
+        width = quotient_high - quotient_low + 1
+        produced = attempt = 0
+        domain = S5_STRATEGY.encode() + b":" + parent_index.to_bytes(4, "big")
+        while produced < quota:
+            offset = _sample_below(width, seed_bytes, domain, attempt)
+            attempt += 1
+            if offset is None:
+                continue
+            candidate = residue + modulus * (quotient_low + offset)
+            if candidate in excluded or candidate in seen:
+                continue
+            seen.add(candidate)
+            produced += 1
+            yield CandidateRecord(candidate, S5_STRATEGY, "decimal_suffix", parent=parent, suffix_digits=suffix_digits)
+
+
+def residue_candidate_records(
+    count: int, parents: list[int], seed: str = "residue-v1", residue_modulus: int = 2**128 + 1,
+) -> Iterator[CandidateRecord]:
+    """Yield candidates preserving a modular residue class from top parents."""
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("count must be nonnegative")
+    if not parents:
+        raise ValueError("parents must be nonempty")
+    if not isinstance(residue_modulus, int) or isinstance(residue_modulus, bool) or residue_modulus < 2:
+        raise ValueError("residue_modulus must be at least 2")
+    allocation = balanced_allocation(count, parents)
+    low, high = 10**999, 10**1000 - 1
+    excluded = set(parents)
+    seen: set[int] = set()
+    seed_bytes = seed.encode()
+    for parent_index, (parent, quota) in enumerate(zip(parents, allocation)):
+        residue = parent % residue_modulus
+        quotient_low = (low - residue + residue_modulus - 1) // residue_modulus
+        quotient_high = (high - residue) // residue_modulus
+        width = quotient_high - quotient_low + 1
+        produced = attempt = 0
+        domain = S6_STRATEGY.encode() + b":" + parent_index.to_bytes(4, "big")
+        while produced < quota:
+            offset = _sample_below(width, seed_bytes, domain, attempt)
+            attempt += 1
+            if offset is None:
+                continue
+            candidate = residue + residue_modulus * (quotient_low + offset)
+            if candidate in excluded or candidate in seen:
+                continue
+            seen.add(candidate)
+            produced += 1
+            yield CandidateRecord(candidate, S6_STRATEGY, "residue", parent=parent, residue_modulus=residue_modulus, residue=residue)

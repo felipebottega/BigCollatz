@@ -398,3 +398,79 @@ class EvaluatorUseTests(unittest.TestCase):
         import bigcollatz.experiment as experiment
         import bigcollatz.evaluator as evaluator
         self.assertIs(experiment.evaluate, evaluator.evaluate)
+
+class StrategyBoundValidationTests(unittest.TestCase):
+    def _root_with_global(self):
+        directory = tempfile.TemporaryDirectory()
+        root = Path(directory.name)
+        parent = 10**999 + 123456789
+        path = root / "results/global_top_10.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps([{"starting_integer": str(parent)}]))
+        return directory, root, parent
+
+    @patch("bigcollatz.experiment.validate_residue", side_effect=AssertionError("wrong validator"))
+    @patch("bigcollatz.experiment.validate_decimal_suffix", return_value=True)
+    @patch("bigcollatz.experiment.evaluate", side_effect=duplicate_repeated_evaluate)
+    @patch("bigcollatz.experiment.decimal_suffix_candidate_records")
+    def test_s5_dispatch_metadata_cycles_and_unrelated_validator_not_called(self, records, _eval, dec_validator, res_validator):
+        from bigcollatz.generator import CandidateRecord, S5_STRATEGY
+        directory, root, parent = self._root_with_global()
+        with directory:
+            records.return_value = iter([CandidateRecord(10**999, S5_STRATEGY, "decimal_suffix", parent=parent, suffix_digits=3)])
+            result = run_experiment(root, experiment_id="s5", count=1, strategy=S5_STRATEGY, validate_candidates=True)
+            self.assertEqual(result["top_10"][0]["validation_mode"], "decimal_suffix")
+            self.assertEqual(result["top_10"][0]["suffix_digits"], 3)
+            cycle = json.loads((root / "results/cycle_candidates.json").read_text())[0]
+            self.assertEqual(cycle["validation_mode"], "decimal_suffix")
+            dec_validator.assert_called_once()
+            res_validator.assert_not_called()
+
+    @patch("bigcollatz.experiment.validate_decimal_suffix", side_effect=AssertionError("wrong validator"))
+    @patch("bigcollatz.experiment.validate_residue", return_value=True)
+    @patch("bigcollatz.experiment.evaluate", side_effect=duplicate_repeated_evaluate)
+    @patch("bigcollatz.experiment.residue_candidate_records")
+    def test_s6_dispatch_metadata_cycles_and_unrelated_validator_not_called(self, records, _eval, res_validator, dec_validator):
+        from bigcollatz.generator import CandidateRecord, S6_STRATEGY
+        directory, root, parent = self._root_with_global()
+        with directory:
+            records.return_value = iter([CandidateRecord(10**999, S6_STRATEGY, "residue", parent=parent, residue_modulus=7, residue=1)])
+            result = run_experiment(root, experiment_id="s6", count=1, strategy=S6_STRATEGY, validate_candidates=True)
+            self.assertEqual(result["top_10"][0]["validation_mode"], "residue")
+            self.assertEqual(result["top_10"][0]["residue_modulus"], 7)
+            cycle = json.loads((root / "results/cycle_candidates.json").read_text())[0]
+            self.assertEqual(cycle["validation_mode"], "residue")
+            res_validator.assert_called_once()
+            dec_validator.assert_not_called()
+
+    @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)
+    @patch("bigcollatz.experiment.decimal_suffix_candidate_records")
+    def test_s5_rejects_residue_mode_and_incomplete_or_invalid_metadata(self, records, _eval):
+        from bigcollatz.generator import CandidateRecord, S5_STRATEGY
+        directory, root, parent = self._root_with_global()
+        with directory:
+            records.return_value = iter([CandidateRecord(10**999, S5_STRATEGY, "residue", parent=parent, residue_modulus=7, residue=1)])
+            with self.assertRaises(ValueError):
+                run_experiment(root, experiment_id="bad-mode", count=1, strategy=S5_STRATEGY, validate_candidates=True)
+            records.return_value = iter([CandidateRecord(10**999, S5_STRATEGY, "decimal_suffix", parent=parent)])
+            with self.assertRaises(ValueError):
+                run_experiment(root, experiment_id="missing", count=1, strategy=S5_STRATEGY, validate_candidates=True)
+            records.return_value = iter([CandidateRecord(10**999, S5_STRATEGY, "decimal_suffix", parent=parent, suffix_digits=3)])
+            with self.assertRaises(ValueError):
+                run_experiment(root, experiment_id="invalid", count=1, strategy=S5_STRATEGY, validate_candidates=True)
+
+    @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)
+    @patch("bigcollatz.experiment.residue_candidate_records")
+    def test_s6_rejects_decimal_suffix_mode_and_incomplete_or_invalid_metadata(self, records, _eval):
+        from bigcollatz.generator import CandidateRecord, S6_STRATEGY
+        directory, root, parent = self._root_with_global()
+        with directory:
+            records.return_value = iter([CandidateRecord(10**999, S6_STRATEGY, "decimal_suffix", parent=parent, suffix_digits=3)])
+            with self.assertRaises(ValueError):
+                run_experiment(root, experiment_id="bad-mode", count=1, strategy=S6_STRATEGY, validate_candidates=True)
+            records.return_value = iter([CandidateRecord(10**999, S6_STRATEGY, "residue", parent=parent, residue_modulus=7)])
+            with self.assertRaises(ValueError):
+                run_experiment(root, experiment_id="missing", count=1, strategy=S6_STRATEGY, validate_candidates=True)
+            records.return_value = iter([CandidateRecord(10**999, S6_STRATEGY, "residue", parent=parent, residue_modulus=7, residue=2)])
+            with self.assertRaises(ValueError):
+                run_experiment(root, experiment_id="invalid", count=1, strategy=S6_STRATEGY, validate_candidates=True)

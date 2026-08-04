@@ -51,3 +51,41 @@
 - **Comparison:** this was weaker than P003, P002, P001, E003, and E004 on maximum and p99.
 - **Conclusion:** rejected for full experiment; merely shortening the prefix loses too much high-tail structure.
 - **Next decision:** stop before a full experiment because the two new pilots did not justify the 10,000-candidate budget; next direction should combine diversity with a stronger parent signal, e.g. rank parent/prefix cells by pilot productivity and only then allocate a full run.
+
+## P005 pilot — S5 decimal suffix top-10
+
+- **Identifier:** `p005-s5-decimal-suffix-100`.
+- **Hypothesis:** preserving the trailing decimal block of current global-top starts may retain arithmetic structure not captured by parity-prefix cells while still exploring distant 1000-digit neighborhoods.
+- **Strategy:** `S5-decimal-suffix-top10`.
+- **Candidate generation:** load `results/global_top_10.json`; allocate 100 candidates evenly across the ten parents; for each parent preserve the exact final 64 decimal digits and sample the remaining quotient uniformly with the deterministic SHA-256 stream.
+- **Validation rule:** strategy-bound `decimal_suffix`; each explicit `CandidateRecord` must declare `validation_mode="decimal_suffix"`, include `parent` and `suffix_digits`, and satisfy `candidate % 10**suffix_digits == parent % 10**suffix_digits` before evaluation.
+- **Source data:** current `results/global_top_10.json` from the merged main branch.
+- **Parameters:** 100 candidates, 1,000 decimal digits, suffix digits 64, balanced 10-per-parent allocation.
+- **Deterministic seed:** `p005-s5-decimal-suffix-seed-20260804`.
+- **Status:** deterministic pilot only; persistent global top ten was not updated.
+- **Outcomes:** reached one 100; repeated state 0; interrupted 0.
+- **Statistics:** mean 24,050.85; median 24,008.0; p90 25,187.4; p99 25,564.86; maximum 25,749.
+- **Runtime:** 4.059158701 seconds; 24.635646784483775 trajectories/second.
+- **Strategy-specific metrics:** all 100 candidates validated by decimal-suffix dispatch; ten global-top suffix cells sampled equally; no source parent was generated.
+- **Comparison:** the maximum exceeded the weak P004 128-prefix pilot tail but remained below the 27,707 E004 global record and did not produce a repeated state.
+- **Conclusion:** inconclusive rather than rejected; the suffix signal is broad enough to keep as a possible diversification source but too weak for immediate full promotion.
+- **Next decision:** test a genuinely different modular residue hypothesis rather than another suffix-length variation.
+
+## P006 pilot — S6 residue class top-10
+
+- **Identifier:** `p006-s6-residue-class-100`.
+- **Hypothesis:** preserving a non-power-of-ten residue class from current global-top starts may capture modular near-return information independent of decimal suffixes and parity-prefix lineage structure.
+- **Strategy:** `S6-residue-class-top10`.
+- **Candidate generation:** load `results/global_top_10.json`; allocate 100 candidates evenly across the ten parents; for each parent preserve its residue modulo `2**128 + 1` and sample quotient lifts uniformly across the full 1,000-digit interval.
+- **Validation rule:** strategy-bound `residue`; each explicit `CandidateRecord` must declare `validation_mode="residue"`, include `residue_modulus` and `residue`, and satisfy `candidate % residue_modulus == residue` before evaluation.
+- **Source data:** current `results/global_top_10.json` from the merged main branch.
+- **Parameters:** 100 candidates, 1,000 decimal digits, residue modulus 340282366920938463463374607431768211457, balanced 10-per-parent allocation.
+- **Deterministic seed:** `p006-s6-residue-class-seed-20260804`.
+- **Status:** deterministic pilot only; persistent global top ten was not updated.
+- **Outcomes:** reached one 100; repeated state 0; interrupted 0.
+- **Statistics:** mean 24,029.56; median 24,022.5; p90 24,918.4; p99 25,885.21; maximum 25,906.
+- **Runtime:** 3.898373787 seconds; 25.651721836800867 trajectories/second.
+- **Strategy-specific metrics:** all 100 candidates validated by residue dispatch; ten top-parent residue classes sampled equally; no source parent was generated.
+- **Comparison:** P006 slightly beat P005 on maximum and p99 but still trailed E004's 27,707 maximum and found no exact repeated state.
+- **Conclusion:** inconclusive; residue targeting is competitive with suffix diversification at pilot scale but does not justify a full 10,000-candidate run without a stronger cell-ranking stage.
+- **Next decision:** continue with a compact productivity-ranked cell strategy that can compare parity, suffix, and residue cells under a single validation-bound runner path before allocating full-experiment scale.
