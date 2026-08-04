@@ -89,3 +89,26 @@
 - **Comparison:** P006 slightly beat P005 on maximum and p99 but still trailed E004's 27,707 maximum and found no exact repeated state.
 - **Conclusion:** inconclusive; residue targeting is competitive with suffix diversification at pilot scale but does not justify a full 10,000-candidate run without a stronger cell-ranking stage.
 - **Next decision:** continue with a compact productivity-ranked cell strategy that can compare parity, suffix, and residue cells under a single validation-bound runner path before allocating full-experiment scale.
+
+## P007 — adaptive Stage A cross-family pilot
+
+- **Hypothesis:** strategy-bound cross-family cells can identify productive local structure better than isolated single-family pilots.
+- **Cells:** `A-parity` (S1 parity-prefix, prefix 256, global-top rank 1), `A-suffix` (S5 decimal suffix, 64 digits, rank 2), and `A-residue` (S6 residue modulo `2**128 + 1`, rank 3).
+- **Seed and scale:** `p007-stage-a-seed-20260804`; 300 total candidates, exactly 100 per cell, all 1,000 decimal digits and globally distinct.
+- **Validation:** each cell declared family, strategy, validation mode, source parent, parent rank, candidate count, and parameters; candidates were rejected before evaluation on wrong validation mode, wrong parent, malformed metadata, non-1,000-digit starts, or global duplicate starts.
+- **Top-tail rule:** highest `ceil(10%)` completed trajectories across the whole pilot; deterministic ties sort by cell id then cell-local order.
+- **Score formula:** `mean + 0.25*p90 + 0.10*p99 + 100*top_tail + 0.5*mean_repeated_residue_hits + 50*mean_odd_density + 1000*repeated_state_count`.
+- **Results:** all 300 reached `1`; repeated state 0; interrupted 0. `A-parity` mean 24,317.33, maximum 26,945, top-tail 14, score 46,345.76076234912. `A-suffix` mean 24,086.6, maximum 25,723, top-tail 8, score 45,229.134189887125. `A-residue` mean 23,994.86, maximum 26,403, top-tail 8, score 45,139.64749259532.
+- **Decision:** Stage A weakly favored the parity-prefix cell by top-tail count and score, but suffix and residue stayed close enough to preserve family diversity in Stage B.
+
+## P008 — adaptive Stage B cross-family pilot
+
+- **Hypothesis:** deterministic score allocation from Stage A can improve cross-family productivity without collapsing to a single family.
+- **Allocation:** requested 300 candidates with minimum quota 1; score-weighted deterministic allocation produced `B-parity` 102, `B-suffix` 99, and `B-residue` 99.
+- **Seed:** `p008-stage-b-seed-20260804`.
+- **Validation and isolation:** same strategy-bound validation and global candidate uniqueness as Stage A; `results/global_top_10.json` byte snapshot was unchanged before and after the pilot.
+- **Results:** all 300 reached `1`; repeated state 0; interrupted 0. `B-parity` mean 24,347.029411764706, maximum 26,240, top-tail 16, score 46,629.70221773229. `B-suffix` mean 24,153.565656565657, maximum 26,864, top-tail 9, score 45,456.57458913324. `B-residue` mean 24,005.19191919192, maximum 26,297, top-tail 5, score 44,768.9521622739.
+- **Comparison:** Stage B did not exceed the E004 global best length 27,707. The strongest robust signal remained parity-prefix, while suffix produced the Stage B maximum. P003/P005/P006/E003/E004 remain stronger evidence for records than this compact pilot.
+- **Decision:** no full experiment promoted; evidence is useful for refining adaptive allocation but not convincing enough for a 10,000-candidate full run.
+- **Stopping reason:** correctness gates, Stage A, Stage B, documentation, and artifact persistence completed; no nontrivial cycle was found.
+- **Immediate continuation point:** refine adaptive cells with additional parent diversity and compare parity-prefix rank sensitivity against suffix/residue cells before any full-scale promotion.
