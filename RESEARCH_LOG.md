@@ -89,3 +89,31 @@
 - **Comparison:** P006 slightly beat P005 on maximum and p99 but still trailed E004's 27,707 maximum and found no exact repeated state.
 - **Conclusion:** inconclusive; residue targeting is competitive with suffix diversification at pilot scale but does not justify a full 10,000-candidate run without a stronger cell-ranking stage.
 - **Next decision:** continue with a compact productivity-ranked cell strategy that can compare parity, suffix, and residue cells under a single validation-bound runner path before allocating full-experiment scale.
+
+## P007 — adaptive cross-family Stage A pilot
+
+- **Identifier:** `p007-adaptive-stage-a-300`.
+- **Hypothesis:** a correctness-first adaptive runner can compare parity-prefix, decimal-suffix, and residue cells under strict record-to-cell validation and shared exact evaluation.
+- **Cells:** `stage-a-parity-r1` with prefix length 128 from global rank 1; `stage-a-suffix-r2` with suffix digits 64 from global rank 2; `stage-a-residue-r3` with modulus `2**128+1` from global rank 3.
+- **Generation and validation:** deterministic SHA-256 family generators; every CandidateRecord metadata field had to exactly match the cell before the family mathematical validator ran; one global pilot-wide candidate set enforced uniqueness.
+- **Seed:** `stage-a-20260804`.
+- **Requested/evaluated:** 300/300, all exactly 1,000 decimal digits.
+- **Outcomes:** reached one 300; repeated state 0; interrupted 0.
+- **Statistics:** parity maximum 26,153, suffix maximum 26,307, residue maximum 25,664. Stage A did not find a repeated state and did not update the persistent global top ten.
+- **Top-tail rule:** exactly `ceil(10% of completed trajectories)` by length, with deterministic cell/order tie breaks.
+- **Score formula:** mean + 0.6*p90 + 0.3*p99 + 25*top-tail count + 10*mean repeated-residue hits + 50*repeated-state count.
+- **Decision:** select the suffix and parity cells for Stage B; residue was weaker in this pilot.
+- **Stopping reason:** completed.
+
+## P008 — adaptive cross-family Stage B pilot
+
+- **Identifier:** `p008-adaptive-stage-b-300`.
+- **Hypothesis:** deterministic Stage B allocation over Stage A scores can retest the strongest adaptive cells without changing global experiment artifacts.
+- **Cells:** `stage-b-suffix-r2` and `stage-b-parity-r1`, allocated 150 candidates each by the tested deterministic allocation rule.
+- **Generation and validation:** same strict record-to-cell validation, exact 1,000-digit validation, global uniqueness, and shared evaluator as Stage A.
+- **Seed:** `stage-b-20260804`.
+- **Requested/evaluated:** 300/300.
+- **Outcomes:** reached one 300; repeated state 0; interrupted 0.
+- **Statistics:** suffix maximum 25,709; parity maximum 26,230. Stage B did not improve the E004 global best length 27,707 and did not find a repeated state.
+- **Comparison:** Stage B was weaker than Stage A on maximum and weaker than E003/E004; no full experiment was promoted because evidence was not convincing and repeatable.
+- **Stopping reason:** completed.

@@ -10,3 +10,17 @@
 - **Current working hypothesis:** useful signal may be concentrated in specific cross-family cells, but isolated decimal-suffix and residue preservation were insufficient at 100-candidate pilot scale.
 - **Next intended direction:** build a compact productivity-ranked cell pilot that compares parity-prefix, decimal-suffix, and residue cells with strategy-bound validation before allocating any future full experiment.
 - **Stopping reason for this task:** after implementing and validating two new strategy families and executing pilots P005 and P006, the remaining task window was insufficient to implement a third genuinely distinct strategy, add full dispatch and runner tests for it, execute another 100-1,000 candidate validated pilot, analyze artifacts, and update the repository without risking partial research state.
+
+
+## Adaptive runner status (2026-08-04)
+
+- **Final objective:** unchanged: find a nontrivial cycle of the positive unaccelerated Collatz map using exact state-by-state repeated-state detection.
+- **Latest completed full experiment:** `e004-s3-recursive-weighted-lineages-256`.
+- **Current best complete starting integer:** unchanged from E004, the 1,000-digit start listed above.
+- **Current best length:** 27,707.
+- **Repeated-state status:** no repeated state was found in completed Stage A or Stage B adaptive pilots; no nontrivial discovery artifact exists.
+- **Valid strategies and pilots present in main:** S0 through S6 plus adaptive pilots `p007-adaptive-stage-a-300` and `p008-adaptive-stage-b-300`.
+- **Rejected or inconclusive hypotheses:** adaptive Stage A/B did not provide convincing repeatable evidence for promotion to a 10,000-candidate full experiment; residue was not selected for Stage B.
+- **Strongest evidence:** E004 remains the strongest full-scale result; adaptive suffix/parity cells produced only pilot-scale maxima of 26,307 and 26,230.
+- **Active hypothesis:** cross-family cells may still be useful, but require better parent/cell selection than the first adaptive Stage A/B pilots.
+- **Immediate next action:** inspect adaptive summaries and design a follow-up only if it adds a stronger selection signal; otherwise retain E004 as current best.

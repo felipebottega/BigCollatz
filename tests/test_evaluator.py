@@ -148,3 +148,15 @@ class MandatoryCycleDetectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class MetricEvaluatorAgreementTests(unittest.TestCase):
+    def assert_agrees(self, start, **kwargs):
+        plain = evaluate(start, **kwargs)
+        met = __import__('bigcollatz.evaluator', fromlist=['evaluate_with_metrics']).evaluate_with_metrics(start, **kwargs).result
+        self.assertEqual(plain, met)
+    def test_reached_one_agrees(self): self.assert_agrees(27)
+    def test_starting_one_agrees(self): self.assert_agrees(1)
+    def test_interrupted_agrees(self): self.assert_agrees(27, max_steps=0)
+    def test_controlled_repeat_agrees(self):
+        trans={5:7,7:9,9:7}.__getitem__
+        self.assert_agrees(5, transition=trans)

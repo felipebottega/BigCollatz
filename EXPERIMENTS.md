@@ -101,3 +101,22 @@ New experiments use 10,000 distinct 1000-digit candidates by default and the
 - **Maximum:** E001 27,442; E004 27,707; absolute difference 265.
 - **Mean difference:** E004 - E001 = 239.9372.
 - **Median difference:** E004 - E001 = 248.0.
+
+## p007-adaptive-stage-a-300
+
+- **Status:** complete isolated pilot; `results/global_top_10.json` unchanged.
+- **Scale:** 300 distinct 1,000-digit candidates, 100 per cell.
+- **Cells:** parity-prefix rank-1 prefix 128; decimal-suffix rank-2 suffix 64; residue rank-3 modulo `2**128+1`.
+- **Validation:** CandidateRecord metadata exactly matched cell family, strategy, validation mode, source parent, and family parameter before mathematical validation and evaluation.
+- **Outcomes:** all 300 reached `1`; 0 repeated state; 0 interrupted.
+- **Best pilot length:** 26,307 from the decimal-suffix cell.
+- **Decision:** use deterministic score to allocate Stage B to suffix and parity cells.
+
+## p008-adaptive-stage-b-300
+
+- **Status:** complete isolated pilot; `results/global_top_10.json` unchanged.
+- **Scale:** 300 distinct 1,000-digit candidates allocated 150/150 to selected Stage A cells.
+- **Cells:** decimal-suffix rank-2 suffix 64; parity-prefix rank-1 prefix 128.
+- **Outcomes:** all 300 reached `1`; 0 repeated state; 0 interrupted.
+- **Best pilot length:** 26,230 from the parity-prefix cell.
+- **Decision:** no full experiment promoted; Stage B did not provide convincing repeatable evidence over E003/E004 or the Stage A maximum.
