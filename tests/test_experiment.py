@@ -18,6 +18,19 @@ def fake_evaluate(candidate: int) -> EvaluationResult:
     return EvaluationResult(candidate, length, "reached_one", candidate + length)
 
 
+def mixed_evaluate(candidate: int) -> EvaluationResult:
+    length = candidate - 10**999
+    if length % 2:
+        return EvaluationResult(candidate, 10_000 + length, "interrupted", candidate,
+                                stopping_reason="user_stop")
+    return EvaluationResult(candidate, length, "reached_one", candidate + length)
+
+
+def interrupted_evaluate(candidate: int) -> EvaluationResult:
+    return EvaluationResult(candidate, 123, "interrupted", candidate,
+                            stopping_reason="user_stop")
+
+
 class ExperimentTests(unittest.TestCase):
     def test_default_scope(self):
         self.assertEqual(DEFAULT_CANDIDATE_COUNT, 10_000)
@@ -54,6 +67,32 @@ class ExperimentTests(unittest.TestCase):
             self.assertEqual(len({entry["starting_integer"] for entry in global_top}), 10)
             self.assertEqual(global_top[0]["experiment_id"], "second")
             self.assertEqual(global_top[0]["total_unaccelerated_trajectory_length"], 11)
+
+    @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
+    @patch("bigcollatz.experiment.evaluate", side_effect=mixed_evaluate)
+    def test_interrupted_are_excluded_from_statistics_and_top_tens(self, _evaluate, _candidates):
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_experiment(Path(directory), experiment_id="mixed", count=6)
+            self.assertEqual(result["summary"]["interrupted_count"], 3)
+            self.assertEqual(result["summary"]["mean_trajectory_length"], 2.0)
+            self.assertEqual(result["summary"]["maximum_trajectory_length"], 4)
+            self.assertTrue(all(entry["outcome"] != "interrupted" for entry in result["top_10"]))
+            self.assertTrue(all(entry["outcome"] != "interrupted" for entry in result["global_top_10"]))
+
+    @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
+    @patch("bigcollatz.experiment.evaluate", side_effect=interrupted_evaluate)
+    def test_all_interrupted_has_null_statistics_and_empty_tops(self, _evaluate, _candidates):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = run_experiment(root, experiment_id="interrupted", count=3)
+            for name in ("mean_trajectory_length", "median_trajectory_length",
+                         "p90_trajectory_length", "p99_trajectory_length",
+                         "maximum_trajectory_length"):
+                self.assertIsNone(result["summary"][name])
+            self.assertEqual(result["summary"]["interrupted_count"], 3)
+            self.assertEqual(result["top_10"], [])
+            self.assertEqual(result["global_top_10"], [])
+            self.assertEqual(json.loads((root / "results/global_top_10.json").read_text()), [])
 
 
 if __name__ == "__main__":
