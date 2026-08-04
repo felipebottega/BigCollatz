@@ -1,6 +1,7 @@
-# Raw results
+# Results
 
-Each experiment may store a plain append-only JSONL file in its own directory.
-Records use canonical decimal strings for large integers and distinguish exact
-mathematical outcomes from censored operational stops. No shard, checkpoint,
-or manifest format is required.
+Each completed experiment stores only `summary.json`, `summary.md`, and
+`top_10.json` in its directory. `global_top_10.json` contains the longest ten
+distinct starting integers across completed experiments. Machine-readable
+files use canonical decimal strings for exact large integers. No raw JSONL,
+CSV, shard, checkpoint, cache, or manifest is created.

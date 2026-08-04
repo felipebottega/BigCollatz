@@ -6,24 +6,11 @@ import hashlib
 from collections.abc import Iterator
 
 
-def baseline_candidates(count: int, digits: int, seed: str = "p0-baseline-v1") -> Iterator[int]:
-    """Sample the decimal stratum uniformly with domain-separated rejection sampling."""
-    if (not isinstance(count, int) or isinstance(count, bool) or count < 0 or
-            not isinstance(digits, int) or isinstance(digits, bool) or not 500 <= digits <= 1000):
-        raise ValueError("count must be nonnegative and digits must be 500..1000")
-    low, width = 10 ** (digits - 1), 9 * 10 ** (digits - 1)
-    byte_count = (width.bit_length() + 7) // 8
-    sample_space = 1 << (8 * byte_count)
-    acceptance_limit = sample_space - sample_space % width
+def baseline_candidates(count: int, seed: str = "baseline-v1") -> Iterator[int]:
+    """Generate a deterministic, distinct sequence of uniformly offset 1000-digit values."""
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("count must be nonnegative")
+    low, width = 10**999, 9 * 10**999
+    offset = int.from_bytes(hashlib.sha256(seed.encode()).digest(), "big") % width
     for ordinal in range(count):
-        attempt = 0
-        while True:
-            material = bytearray()
-            for block in range((byte_count + 31) // 32):
-                domain = f"{seed}:digits={digits}:ordinal={ordinal}:attempt={attempt}:block={block}"
-                material.extend(hashlib.sha256(domain.encode()).digest())
-            sample = int.from_bytes(material[:byte_count], "big")
-            if sample < acceptance_limit:
-                yield low + sample % width
-                break
-            attempt += 1
+        yield low + (offset + ordinal) % width

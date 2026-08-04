@@ -4,18 +4,23 @@ import argparse
 import json
 from pathlib import Path
 
-from .experiment import run_pilot
+from .experiment import DEFAULT_CANDIDATE_COUNT, run_experiment
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="bigcollatz")
     sub = parser.add_subparsers(dest="command", required=True)
-    pilot = sub.add_parser("pilot", help="run deterministic P0 pilot and benchmark")
-    pilot.add_argument("--per-digit", type=int, default=40)
-    pilot.add_argument("--output-root", type=Path, default=Path("."))
+    run = sub.add_parser("run", help="run a sequential 1000-digit experiment")
+    run.add_argument("experiment_id", help="identifier used for the result directory")
+    run.add_argument("--count", type=int, default=DEFAULT_CANDIDATE_COUNT,
+                     help=f"distinct candidates to evaluate (default: {DEFAULT_CANDIDATE_COUNT})")
+    run.add_argument("--seed", default="baseline-v1")
+    run.add_argument("--output-root", type=Path, default=Path("."))
     args = parser.parse_args()
-    if args.command == "pilot":
-        print(json.dumps(run_pilot(args.output_root, per_digit=args.per_digit)["summary"], indent=2))
+    if args.command == "run":
+        result = run_experiment(args.output_root, experiment_id=args.experiment_id,
+                                count=args.count, seed=args.seed)
+        print(json.dumps(result["summary"], indent=2))
 
 
 if __name__ == "__main__":

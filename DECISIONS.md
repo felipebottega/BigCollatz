@@ -14,13 +14,13 @@ kept only as a test oracle.
 
 ## Simple experiments
 
-Candidate generation is deterministic. Results are appended to plain JSONL and
-reports are regenerated from them. The current scale does not justify execution
-or storage infrastructure beyond a sequential loop and ordinary files.
+Candidate generation is deterministic. A run retains only trajectory lengths
+needed for statistics and a top-ten heap; it writes no per-trajectory raw file.
+The current scale needs only a sequential loop and small ordinary files.
 
 ## Fair comparison
 
 Raw unaccelerated trajectory length is the primary response. Strategies are
-compared under equal digit strata and sample budgets; a composite score cannot
-replace the raw measurement. Candidate-generation runtime should be considered
-when a nontrivial generator is eventually tested.
+compared with 1000-digit candidates and equal sample budgets; a composite score
+cannot replace the raw measurement. Candidate-generation runtime should be
+considered when a nontrivial generator is eventually tested.

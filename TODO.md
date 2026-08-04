@@ -8,12 +8,14 @@
   domain separation.
 - [x] A 600-trajectory baseline pilot with raw JSONL output, top-10 starts, and
   per-digit count/mean/median/p90/maximum/best-start summaries.
+- [x] Replace the active pilot layout with 10,000-candidate, 1000-digit runs
+  that retain only aggregate statistics and local/global top tens.
 - [x] Simplify documentation and remove infrastructure plans.
 
 ## Next small experiments
 
-- [ ] Compare another simple control generator with S0 under the same digit and
-  candidate counts.
+- [ ] Compare another simple control generator with S0 under the same
+  1000-digit candidate count.
 - [ ] Add report comparisons only when a second strategy has actual results.
 - [ ] Profile only if evaluator runtime blocks a concrete experiment.
 
