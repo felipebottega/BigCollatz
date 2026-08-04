@@ -39,6 +39,23 @@ class EvaluationResult:
     stopping_reason: str = "reached_one"
     safety_limit_kind: str | None = None
     safety_limit_value: int | None = None
+    repeated_integer: str | None = None
+    first_seen_step: int | None = None
+    repeated_at_step: int | None = None
+    cycle_length: int | None = None
+
+
+    def __post_init__(self) -> None:
+        if self.outcome == "repeated_state" and self.repeated_state is not None:
+            if self.repeated_integer is None:
+                object.__setattr__(self, "repeated_integer", str(self.repeated_state))
+            if self.first_seen_step is None and self.cycle_entry_step is not None:
+                object.__setattr__(self, "first_seen_step", self.cycle_entry_step)
+            if self.cycle_period is not None and self.cycle_entry_step is not None:
+                if self.repeated_at_step is None:
+                    object.__setattr__(self, "repeated_at_step", self.cycle_entry_step + self.cycle_period)
+                if self.cycle_length is None:
+                    object.__setattr__(self, "cycle_length", self.cycle_period)
 
     @property
     def reached_one(self) -> bool:
@@ -62,12 +79,19 @@ class EvaluationResult:
             raise ValueError("unsupported stopping reason")
         if self.start <= 0 or self.total_steps_executed < 0 or self.maximum_integer < self.start:
             raise ValueError("invalid positive integer or metric")
-        details = (self.repeated_state, self.cycle_entry_step, self.cycle_period)
+        details = (self.repeated_state, self.cycle_entry_step, self.cycle_period,
+                   self.repeated_integer, self.first_seen_step, self.repeated_at_step,
+                   self.cycle_length)
         if self.repeated_state_found:
             if (any(value is None for value in details) or
-                    not all(_is_int(value) for value in details) or
+                    not all(_is_int(value) for value in (self.repeated_state, self.cycle_entry_step, self.cycle_period, self.first_seen_step, self.repeated_at_step, self.cycle_length)) or
+                    not isinstance(self.repeated_integer, str) or
                     self.cycle_entry_step < 0 or self.cycle_period < 1 or  # type: ignore[operator]
-                    self.cycle_entry_step + self.cycle_period != self.total_steps_executed):  # type: ignore[operator]
+                    self.cycle_entry_step + self.cycle_period != self.total_steps_executed or  # type: ignore[operator]
+                    self.repeated_integer != str(self.repeated_state) or
+                    self.first_seen_step != self.cycle_entry_step or
+                    self.repeated_at_step != self.total_steps_executed or
+                    self.cycle_length != self.cycle_period):
                 raise ValueError("repetition requires complete cycle details")
         elif any(value is not None for value in details):
             raise ValueError("cycle details are exclusive to repeated_state")
@@ -121,6 +145,10 @@ class EvaluationResult:
             cycle_entry_step=record.get("cycle_entry_step"), cycle_period=record.get("cycle_period"),
             stopping_reason=record["stopping_reason"], safety_limit_kind=record.get("safety_limit_kind"),
             safety_limit_value=record.get("safety_limit_value"),
+            repeated_integer=record.get("repeated_integer"),
+            first_seen_step=record.get("first_seen_step"),
+            repeated_at_step=record.get("repeated_at_step"),
+            cycle_length=record.get("cycle_length"),
         )
         result.validate()
         if not _is_int(record["decimal_digits"]) or record["decimal_digits"] != len(str(result.start)):

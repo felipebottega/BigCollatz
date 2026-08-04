@@ -119,5 +119,32 @@ class EvaluatorTests(unittest.TestCase):
                 EvaluationResult.from_record(malformed)
 
 
+class MandatoryCycleDetectionTests(unittest.TestCase):
+    def test_starting_integer_is_registered_at_step_zero(self):
+        result = evaluate(7, transition=lambda _: 7)
+        self.assertEqual(result.outcome, "repeated_state")
+        self.assertEqual(result.first_seen_step, 0)
+        self.assertEqual(result.repeated_at_step, 1)
+        self.assertEqual(result.cycle_length, 1)
+
+    def test_repetition_checked_after_every_generated_step_and_stops_first(self):
+        calls = []
+        edges = {8: 9, 9: 10, 10: 9}
+        def transition(n):
+            calls.append(n)
+            return edges[n]
+        result = evaluate(8, transition=transition)
+        self.assertEqual(calls, [8, 9, 10])
+        self.assertEqual(result.repeated_integer, "9")
+        self.assertEqual((result.first_seen_step, result.repeated_at_step, result.cycle_length), (1, 3, 2))
+
+    def test_reached_one_has_no_cycle_metadata(self):
+        result = evaluate(2)
+        self.assertEqual(result.outcome, "reached_one")
+        self.assertIsNone(result.repeated_integer)
+        self.assertIsNone(result.first_seen_step)
+        self.assertIsNone(result.repeated_at_step)
+        self.assertIsNone(result.cycle_length)
+
 if __name__ == "__main__":
     unittest.main()
