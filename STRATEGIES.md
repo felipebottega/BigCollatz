@@ -74,3 +74,16 @@ S5 tests whether the trailing decimal digits of successful 1,000-digit starts ca
 ## S6-residue-class-top10
 
 S6 tests whether preserving non-decimal modular classes from successful starts captures near-return information missed by decimal suffix and parity-prefix searches. It uses `results/global_top_10.json`, balances candidates across the current top-ten parents, preserves each parent's residue modulo `2**128 + 1`, and samples quotient lifts uniformly by the shared SHA-256 sampler across the full 1,000-digit interval. Every generated candidate is an explicit `CandidateRecord` with required validation mode `residue`, `residue_modulus`, and `residue`. Validation requires exact residue equality before the common exact evaluator runs. Pilot `p006-s6-residue-class-100` reached one for all 100 candidates, found no repeated state, and reached maximum length 25,906. Current status: inconclusive; competitive with S5 at pilot scale but not promoted without additional cell-ranking evidence.
+
+
+## S7 — Adaptive cross-family cell search
+
+- **Hypothesis:** delayed-descent signal may be localized in a small number of cross-family cells, so a two-stage pilot can compare parity-prefix, decimal-suffix, and residue preservation under one budget before concentrating on productive cells.
+- **Stage A design:** `p007-s7-adaptive-cross-family-stage-a-300` compared six 50-candidate cells: top-two parents crossed with parity-prefix length 256, decimal suffix length 64, and residue modulo `2**128 + 1`.
+- **Stage B design:** `p008-s7-adaptive-cross-family-stage-b-300` selected the top three scored Stage A cells plus the best missing family and allocated 120/90/60/30 candidates.
+- **Scoring rule:** `p90 + 0.5*p99_or_0 + 100*count(length>=26000) + 250*repeated_state_count - 0.01*mean_first_descent_step`. The rule deliberately avoids ranking solely by a single maximum.
+- **Diversity rule:** Stage B keeps the top three scored cells and adds the best missing family when the top three omit a required family, preventing immediate collapse to one family.
+- **Validation dispatch:** the cell family fixes the required validation mode: parity-prefix cells require `parity_prefix`, decimal-suffix cells require `decimal_suffix`, and residue cells require `residue`; candidate metadata mismatches are rejected before evaluation.
+- **Recurrence metrics:** compact streaming metrics are odd-step density, first descent below start, maximum-excursion ratio, same-decimal-digit-band returns, and repeated residues modulo `2**64 - 59`. They are heuristics only; exact trajectory-local repeated-state mapping remains mandatory.
+- **Full experiment:** none. S7 was rejected for immediate full promotion after P008.
+- **Limitations:** Stage A used only the top two global parents and 50 candidates per cell, so cell scores are noisy; Stage B improved distributional tail but not the maximum or exact recurrence evidence relative to E003/E004.

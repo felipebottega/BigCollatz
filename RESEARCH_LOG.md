@@ -89,3 +89,30 @@
 - **Comparison:** P006 slightly beat P005 on maximum and p99 but still trailed E004's 27,707 maximum and found no exact repeated state.
 - **Conclusion:** inconclusive; residue targeting is competitive with suffix diversification at pilot scale but does not justify a full 10,000-candidate run without a stronger cell-ranking stage.
 - **Next decision:** continue with a compact productivity-ranked cell strategy that can compare parity, suffix, and residue cells under a single validation-bound runner path before allocating full-experiment scale.
+
+
+## P007 — S7 adaptive cross-family Stage A pilot
+
+- **Identifier:** `p007-s7-adaptive-cross-family-stage-a-300`.
+- **Hypothesis:** useful signal is concentrated in a few parent/family cells rather than uniformly across all parity-prefix, decimal-suffix, and residue-class variants.
+- **Cell families and definitions:** six 50-candidate cells over the current top two global parents: parity-prefix length 256 for ranks 1 and 2; decimal suffix length 64 for ranks 1 and 2; residue modulo `2**128 + 1` for ranks 1 and 2.
+- **Generation and validation:** each cell generated distinct 1,000-digit quotient lifts with deterministic seed `p007-stage-a-seed-20260804`; strategy-bound validation dispatched by family (`parity_prefix`, `decimal_suffix`, or `residue`) before exact evaluation.
+- **Outcomes:** 300 reached `1`; 0 repeated states; 0 interrupted; mean 24,103.2967; median 24,094.0; p90 25,036.2; p99 25,855.05; maximum 26,705.
+- **Recurrence-oriented metrics:** streaming exact/compact metrics recorded per cell: odd-step density, first descent below the starting integer, maximum-excursion ratio, same-decimal-digit-band returns, and repeated residues modulo `2**64 - 59`. These metrics guide scoring only and do not replace exact repeated-state detection.
+- **Scoring rule:** deterministic score `p90 + 0.5*p99_or_0 + 100*count(length>=26000) + 250*repeated_state_count - 0.01*mean_first_descent_step`, with Stage B diversity preserving the best missing family when needed.
+- **Cell findings:** strongest scores were rank-1 parity prefix (max 25,855, p90 25,266.5), rank-1 decimal suffix (max 26,174, p90 25,138.6), and rank-2 parity prefix (max 26,705, p90 25,083.4). Residue rank 2 was retained for diversity despite a weaker score.
+- **Comparison:** Stage A exceeded P005 and P006 maximums but remained below P003, E003, and E004; no recurrence metric indicated a near-cycle or exact repetition.
+- **Conclusion:** supported only for a targeted Stage B pilot, not for full promotion.
+- **Next decision:** run Stage B with heavier allocation to the strongest cells while preserving residue-family diversity.
+
+## P008 — S7 adaptive cross-family Stage B pilot
+
+- **Identifier:** `p008-s7-adaptive-cross-family-stage-b-300`.
+- **Hypothesis:** reallocating from the Stage A cell scores should improve the distribution tail relative to a flat cross-family allocation while retaining family diversity.
+- **Selected cells and allocation:** 120 candidates to rank-1 parity-prefix length 256; 90 to rank-1 decimal suffix length 64; 60 to rank-2 parity-prefix length 256; 30 to rank-2 residue modulo `2**128 + 1`.
+- **Generation and validation:** deterministic seed `p008-stage-b-seed-20260804`; all candidates were distinct 1,000-digit integers; strategy-bound validation was enabled for each family; pilot artifacts were isolated and did not update `results/global_top_10.json`.
+- **Outcomes:** 300 reached `1`; 0 repeated states; 0 interrupted; mean 24,186.0733; median 24,155.0; p90 25,127.5; p99 26,020.43; maximum 26,134.
+- **Recurrence-oriented metrics:** the same streaming metrics were recorded. Mean odd-step densities stayed near one third, first-descent signals remained parent-dependent, and repeated residue hits did not distinguish a recurrence candidate.
+- **Comparison:** Stage B improved Stage A mean, median, p90, p99, and length>=26,000 frequency, but its maximum fell from 26,705 to 26,134. It exceeded P005/P006 on p99 but remained below P003 maximum, E003, and E004; it did not produce any exact repeated state.
+- **Promotion decision:** rejected for full E005 promotion because the apparent benefit was distributional but not strong enough against E003/E004 and was not supported by recurrence-oriented evidence.
+- **Next decision:** do not spend 10,000-candidate full scale on S7 now; a later hypothesis should investigate parent-rank effects or deeper lineage-aware adaptive cells using existing E003/E004 lineage evidence.

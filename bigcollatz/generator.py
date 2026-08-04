@@ -16,6 +16,7 @@ S3_STRATEGY = "S3-recursive-weighted-lineages"
 S4_STRATEGY = "S4-diversified-mixed-prefix-top10"
 S5_STRATEGY = "S5-decimal-suffix-top10"
 S6_STRATEGY = "S6-residue-class-top10"
+S7_STRATEGY = "S7-adaptive-cross-family-cells"
 LINEAGE_STRATEGIES = frozenset((S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, S5_STRATEGY, S6_STRATEGY))
 DEFAULT_PREFIX_LENGTH = 256
 
