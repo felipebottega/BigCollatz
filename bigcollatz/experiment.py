@@ -115,6 +115,9 @@ def run_experiment(
             "strategy": strategy,
             "experiment_id": experiment_id,
         }
+        if strategy == S1_STRATEGY:
+            entry["parent_starting_integer"] = str(parent)
+            entry["prefix_length"] = prefix_length
         keyed = (_top_key(entry), entry)
         if len(top_heap) < 10:
             heapq.heappush(top_heap, keyed)
@@ -143,16 +146,22 @@ def run_experiment(
     result_dir.mkdir(parents=True, exist_ok=True)
     (result_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
     (result_dir / "top_10.json").write_text(json.dumps(top_10, indent=2, sort_keys=True) + "\n")
+    top_header = ("| Start (abbreviated) | Parent (abbreviated) | Length | "
+                  "Maximum (abbreviated) | Outcome | Runtime (s) |") if strategy == S1_STRATEGY else (
+                  "| Start (abbreviated) | Length | Maximum (abbreviated) | Outcome | Runtime (s) |")
+    top_separator = ("| --- | --- | ---: | --- | --- | ---: |" if strategy == S1_STRATEGY
+                     else "| --- | ---: | --- | --- | ---: |")
     lines = [
         f"# {experiment_id}", "", f"Strategy: `{strategy}`; candidates: {count:,} (all 1000 digits).", "",
         "## Statistics", "", f"- Mean: {summary['mean_trajectory_length']:.3f}" if lengths else "- Mean: null",
         f"- Median: {summary['median_trajectory_length']}", f"- P90: {summary['p90_trajectory_length']}",
         f"- P99: {summary['p99_trajectory_length']}", f"- Maximum: {summary['maximum_trajectory_length']}", "",
-        "## Top 10", "", "| Start (abbreviated) | Length | Maximum (abbreviated) | Outcome | Runtime (s) |",
-        "| --- | ---: | --- | --- | ---: |",
+        "## Top 10", "", top_header, top_separator,
     ]
     for entry in top_10:
-        lines.append(f"| `{_abbreviate(entry['starting_integer'])}` | {entry['total_unaccelerated_trajectory_length']} | "
+        parent_cell = (f"`{_abbreviate(entry['parent_starting_integer'])}` | "
+                       if strategy == S1_STRATEGY else "")
+        lines.append(f"| `{_abbreviate(entry['starting_integer'])}` | {parent_cell}{entry['total_unaccelerated_trajectory_length']} | "
                      f"`{_abbreviate(entry['maximum_integer_reached'])}` | {entry['outcome']} | {entry['runtime_seconds']:.6f} |")
     if top_10:
         lines += ["", "## Best starting integer (complete)", "", "```text", top_10[0]["starting_integer"], "```", ""]

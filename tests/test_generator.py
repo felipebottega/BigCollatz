@@ -68,6 +68,32 @@ class ParityPrefixGeneratorTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "empty"):
                 load_global_top_10(path)
 
+    def test_parent_file_validation_errors_are_clear(self):
+        valid = "1" + "0" * 999
+        cases = [
+            ("", "empty"),
+            ("not json", "malformed JSON"),
+            (json.dumps([{"wrong_field": valid}]), "invalid parent"),
+            (json.dumps([{"starting_integer": "1" + "0" * 998}]), "1000-digit"),
+            (json.dumps([{"starting_integer": "0" + "1" * 999}]), "canonical"),
+            (json.dumps([{"starting_integer": valid}, {"starting_integer": valid}]),
+             "duplicate parent"),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "global_top_10.json"
+            for contents, message in cases:
+                with self.subTest(message=message):
+                    path.write_text(contents)
+                    with self.assertRaisesRegex(ValueError, message):
+                        load_global_top_10(path)
+
+    def test_nonempty_parent_list_need_not_have_ten_entries(self):
+        parent = "9" * 1000
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "global_top_10.json"
+            path.write_text(json.dumps([{"starting_integer": parent}]))
+            self.assertEqual(load_global_top_10(path), [int(parent)])
+
 
 if __name__ == "__main__":
     unittest.main()
