@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import OrderedDict
 from collections.abc import Iterator
 from pathlib import Path
 
 S0_STRATEGY = "S0-uniform-deterministic"
 S1_STRATEGY = "S1-parity-prefix-top10"
+S2_STRATEGY = "S2-parity-prefix-weighted-lineages"
 DEFAULT_PREFIX_LENGTH = 256
 
 
@@ -38,9 +40,6 @@ def baseline_candidates(count: int, seed: str = "baseline-v1") -> Iterator[int]:
     attempt = 0
 
     while len(seen) < count:
-        # Expand independently addressed SHA-256 blocks.  Masking and rejecting
-        # values outside ``width`` avoids the bias introduced by reduction modulo
-        # an interval whose size is not a power of two.
         sampled = _sample_below(width, seed_bytes, S0_STRATEGY.encode(), attempt)
         attempt += 1
         if sampled is None:
@@ -69,6 +68,15 @@ def validate_parity_prefix(candidate: int, parent: int,
     return parity_decisions(candidate, prefix_length) == parity_decisions(parent, prefix_length)
 
 
+def _validate_canonical_1000_digit(value: object, source_name: str, path: Path) -> str:
+    if (not isinstance(value, str) or len(value) != 1000
+            or value[0] == "0" or not value.isascii() or not value.isdecimal()):
+        raise ValueError(
+            f"invalid {source_name} (expected canonical 1000-digit decimal): {path}"
+        )
+    return value
+
+
 def load_global_top_10(path: Path) -> list[int]:
     """Load distinct canonical 1000-digit parents from a persistent top-ten file."""
     if not path.exists():
@@ -90,18 +98,57 @@ def load_global_top_10(path: Path) -> list[int]:
     for record in records:
         if not isinstance(record, dict):
             raise ValueError(f"invalid parent record in global top-10 file: {path}")
-        value = record.get("starting_integer")
-        if (not isinstance(value, str) or len(value) != 1000
-                or value[0] == "0" or not value.isascii() or not value.isdecimal()):
-            raise ValueError(
-                f"invalid parent in global top-10 file (expected canonical 1000-digit decimal): {path}"
-            )
+        value = _validate_canonical_1000_digit(record.get("starting_integer"), "parent in global top-10 file", path)
         if value in seen:
             raise ValueError(f"duplicate parent in global top-10 file: {path}")
         seen.add(value)
-        parent = int(value)
-        parents.append(parent)
+        parents.append(int(value))
     return parents
+
+
+def load_lineage_weights(path: Path, prefix_length: int = DEFAULT_PREFIX_LENGTH) -> list[tuple[int, int]]:
+    """Load S2 parent weights from an S1 top-ten file, preserving first-seen parent order."""
+    if not path.exists():
+        raise ValueError(f"source top-10 file is missing: {path}")
+    try:
+        contents = path.read_text()
+    except OSError as error:
+        raise ValueError(f"cannot read source top-10 file: {path}") from error
+    if not contents.strip():
+        raise ValueError(f"source top-10 file is empty: {path}")
+    try:
+        records = json.loads(contents)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"malformed JSON in source top-10 file: {path}") from error
+    if not isinstance(records, list) or not records:
+        raise ValueError(f"source top-10 file is empty: {path}")
+    weights: OrderedDict[str, int] = OrderedDict()
+    first_seen: dict[str, int] = {}
+    observed_prefix: int | None = None
+    for record in records:
+        if not isinstance(record, dict):
+            raise ValueError(f"invalid descendant record in source top-10 file: {path}")
+        if "parent_starting_integer" not in record or "prefix_length" not in record:
+            raise ValueError(f"source top-10 file is missing lineage fields: {path}")
+        parent = _validate_canonical_1000_digit(
+            record["parent_starting_integer"], "parent lineage in source top-10 file", path
+        )
+        record_prefix = record["prefix_length"]
+        if not isinstance(record_prefix, int) or isinstance(record_prefix, bool) or record_prefix < 1:
+            raise ValueError(f"invalid prefix length in source top-10 file: {path}")
+        if observed_prefix is None:
+            observed_prefix = record_prefix
+        elif record_prefix != observed_prefix:
+            raise ValueError(f"source top-10 file has inconsistent prefix lengths: {path}")
+        if record_prefix != prefix_length:
+            raise ValueError(
+                f"source top-10 prefix length {record_prefix} does not match requested {prefix_length}: {path}"
+            )
+        if parent not in first_seen:
+            first_seen[parent] = len(first_seen)
+        weights[parent] = weights.get(parent, 0) + 1
+    ordered = sorted(weights.items(), key=lambda item: (-item[1], first_seen[item[0]]))
+    return [(int(parent), weight) for parent, weight in ordered]
 
 
 def balanced_allocation(count: int, parents: list[int]) -> list[int]:
@@ -112,16 +159,24 @@ def balanced_allocation(count: int, parents: list[int]) -> list[int]:
     return [base + (index < extra) for index in range(len(parents))]
 
 
-def parity_prefix_candidate_records(
-    count: int, parents: list[int], seed: str = "parity-prefix-v1",
-    prefix_length: int = DEFAULT_PREFIX_LENGTH,
+def weighted_allocation(count: int, weights: list[int]) -> list[int]:
+    """Proportionally allocate exactly ``count`` by weight using deterministic remainders."""
+    if (not isinstance(count, int) or isinstance(count, bool) or count < 0
+            or not weights or any(not isinstance(w, int) or isinstance(w, bool) or w < 1 for w in weights)):
+        raise ValueError("count must be nonnegative and weights must be positive integers")
+    total_weight = sum(weights)
+    floors = [(count * weight) // total_weight for weight in weights]
+    remaining = count - sum(floors)
+    remainders = [(count * weight) % total_weight for weight in weights]
+    allocation = floors[:]
+    for index in sorted(range(len(weights)), key=lambda i: (-remainders[i], i))[:remaining]:
+        allocation[index] += 1
+    return allocation
+
+
+def _parity_prefix_candidate_records_with_allocation(
+    parents: list[int], allocation: list[int], seed: str, prefix_length: int, strategy_domain: str,
 ) -> Iterator[tuple[int, int]]:
-    """Yield ``(descendant, parent)`` pairs sampled across each congruence class."""
-    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
-        raise ValueError("count must be nonnegative")
-    if not isinstance(prefix_length, int) or isinstance(prefix_length, bool) or prefix_length < 1:
-        raise ValueError("prefix_length must be a positive integer")
-    allocation = balanced_allocation(count, parents)
     low, high = 10**999, 10**1000 - 1
     modulus = 1 << prefix_length
     excluded = set(parents)
@@ -133,7 +188,7 @@ def parity_prefix_candidate_records(
         quotient_high = (high - residue) // modulus
         width = quotient_high - quotient_low + 1
         produced = attempt = 0
-        domain = S1_STRATEGY.encode() + b":" + parent_index.to_bytes(4, "big")
+        domain = strategy_domain.encode() + b":" + parent_index.to_bytes(4, "big")
         while produced < quota:
             offset = _sample_below(width, seed_bytes, domain, attempt)
             attempt += 1
@@ -145,6 +200,37 @@ def parity_prefix_candidate_records(
             seen.add(candidate)
             produced += 1
             yield candidate, parent
+
+
+def parity_prefix_candidate_records(
+    count: int, parents: list[int], seed: str = "parity-prefix-v1",
+    prefix_length: int = DEFAULT_PREFIX_LENGTH,
+) -> Iterator[tuple[int, int]]:
+    """Yield ``(descendant, parent)`` pairs sampled evenly across each congruence class."""
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("count must be nonnegative")
+    if not isinstance(prefix_length, int) or isinstance(prefix_length, bool) or prefix_length < 1:
+        raise ValueError("prefix_length must be a positive integer")
+    allocation = balanced_allocation(count, parents)
+    yield from _parity_prefix_candidate_records_with_allocation(
+        parents, allocation, seed, prefix_length, S1_STRATEGY
+    )
+
+
+def weighted_parity_prefix_candidate_records(
+    count: int, parent_weights: list[tuple[int, int]], seed: str = "parity-prefix-v1",
+    prefix_length: int = DEFAULT_PREFIX_LENGTH,
+) -> Iterator[tuple[int, int]]:
+    """Yield parity-prefix candidates proportionally allocated by productive lineage weight."""
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("count must be nonnegative")
+    if not isinstance(prefix_length, int) or isinstance(prefix_length, bool) or prefix_length < 1:
+        raise ValueError("prefix_length must be a positive integer")
+    parents = [parent for parent, _ in parent_weights]
+    allocation = weighted_allocation(count, [weight for _, weight in parent_weights])
+    yield from _parity_prefix_candidate_records_with_allocation(
+        parents, allocation, seed, prefix_length, S2_STRATEGY
+    )
 
 
 def parity_prefix_candidates(count: int, parents: list[int], seed: str = "parity-prefix-v1",
