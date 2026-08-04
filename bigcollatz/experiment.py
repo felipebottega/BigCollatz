@@ -54,6 +54,37 @@ def _update_global(output_root: Path, current: list[dict[str, Any]]) -> list[dic
     return global_top
 
 
+def _cycle_candidate_record(
+    *, result: Any, candidate: int, experiment_id: str, strategy: str,
+    parent: int | None, prefix_length: int,
+) -> dict[str, Any]:
+    record = {
+        "starting_integer": str(candidate),
+        "repeated_integer": result.repeated_integer,
+        "first_seen_step": result.first_seen_step,
+        "repeated_at_step": result.repeated_at_step,
+        "cycle_length": result.cycle_length,
+        "experiment_id": experiment_id,
+        "strategy": strategy,
+    }
+    if strategy in (S1_STRATEGY, S2_STRATEGY):
+        record["parent_starting_integer"] = str(parent)
+        record["prefix_length"] = prefix_length
+    return record
+
+
+def _persist_cycle_candidates(output_root: Path, records: list[dict[str, Any]]) -> None:
+    if not records:
+        return
+    path = output_root / "results" / "cycle_candidates.json"
+    existing = json.loads(path.read_text()) if path.exists() else []
+    deduplicated: dict[tuple[str, int], dict[str, Any]] = {}
+    for record in existing + records:
+        deduplicated[(record["repeated_integer"], record["cycle_length"])] = record
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(list(deduplicated.values()), indent=2, sort_keys=True) + "\n")
+
+
 def run_experiment(
     output_root: Path,
     *,
@@ -114,6 +145,7 @@ def run_experiment(
     lengths: list[int] = []
     outcomes = {"reached_one": 0, "repeated_state": 0, "interrupted": 0}
     top_heap: list[tuple[tuple[int, int], dict[str, Any]]] = []
+    cycle_candidates: list[dict[str, Any]] = []
     started = time.perf_counter_ns()
 
     for candidate, parent in candidate_records:
@@ -124,6 +156,11 @@ def run_experiment(
         result = evaluate(candidate)
         runtime_ns = time.perf_counter_ns() - trajectory_started
         outcomes[result.outcome] += 1
+        if result.outcome == "repeated_state":
+            cycle_candidates.append(_cycle_candidate_record(
+                result=result, candidate=candidate, experiment_id=experiment_id,
+                strategy=strategy, parent=parent, prefix_length=prefix_length,
+            ))
         if result.outcome not in COMPLETED_OUTCOMES:
             continue
         lengths.append(result.total_steps_executed)
@@ -147,6 +184,7 @@ def run_experiment(
 
     elapsed_seconds = (time.perf_counter_ns() - started) / 1e9
     top_10 = [entry for _, entry in sorted(top_heap, reverse=True)]
+    repeated_lengths = [record["cycle_length"] for record in cycle_candidates]
     summary = {
         "experiment_id": experiment_id,
         "strategy": {"name": strategy, "parameters": parameters},
@@ -162,6 +200,12 @@ def run_experiment(
         "total_wall_time_seconds": elapsed_seconds,
         "trajectories_per_second": count / elapsed_seconds,
     }
+    if repeated_lengths:
+        summary.update(
+            nontrivial_cycle_candidate_count=len(repeated_lengths),
+            smallest_detected_cycle_length=min(repeated_lengths),
+            largest_detected_cycle_length=max(repeated_lengths),
+        )
 
     result_dir = output_root / "results" / experiment_id
     result_dir.mkdir(parents=True, exist_ok=True)
@@ -187,5 +231,6 @@ def run_experiment(
     if top_10:
         lines += ["", "## Best starting integer (complete)", "", "```text", top_10[0]["starting_integer"], "```", ""]
     (result_dir / "summary.md").write_text("\n".join(lines))
+    _persist_cycle_candidates(output_root, cycle_candidates)
     global_top = _update_global(output_root, top_10)
     return {"summary": summary, "top_10": top_10, "global_top_10": global_top}

@@ -214,5 +214,83 @@ class ExperimentTests(unittest.TestCase):
             self.assertEqual(json.loads((root / "results/global_top_10.json").read_text()), [])
 
 
+
+def repeated_evaluate(candidate: int) -> EvaluationResult:
+    length = candidate - 10**999
+    if length == 0:
+        return EvaluationResult(candidate, 5, "repeated_state", candidate + 10, 42, 2, 3, "repeated_state")
+    return EvaluationResult(candidate, 100 + length, "reached_one", candidate + length)
+
+
+def duplicate_repeated_evaluate(candidate: int) -> EvaluationResult:
+    return EvaluationResult(candidate, 5, "repeated_state", candidate + 10, 42, 2, 3, "repeated_state")
+
+
+class CycleCandidatePersistenceTests(unittest.TestCase):
+    @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
+    @patch("bigcollatz.experiment.evaluate", side_effect=repeated_evaluate)
+    def test_repeated_state_count_and_persistence_outside_top_ten(self, _evaluate, _candidates):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = run_experiment(root, experiment_id="cycles", count=12)
+            self.assertEqual(result["summary"]["repeated_state_count"], 1)
+            self.assertEqual(result["summary"]["nontrivial_cycle_candidate_count"], 1)
+            self.assertEqual(result["summary"]["smallest_detected_cycle_length"], 3)
+            self.assertTrue(all(entry["outcome"] == "reached_one" for entry in result["top_10"]))
+            records = json.loads((root / "results/cycle_candidates.json").read_text())
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]["repeated_integer"], "42")
+
+    @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
+    @patch("bigcollatz.experiment.evaluate", side_effect=duplicate_repeated_evaluate)
+    def test_duplicate_cycle_records_are_deduplicated(self, _evaluate, _candidates):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run_experiment(root, experiment_id="dupes", count=3)
+            records = json.loads((root / "results/cycle_candidates.json").read_text())
+            self.assertEqual(len(records), 1)
+
+    @patch("bigcollatz.experiment.parity_prefix_candidate_records")
+    @patch("bigcollatz.experiment.evaluate", side_effect=duplicate_repeated_evaluate)
+    def test_s1_cycle_record_preserves_lineage(self, _evaluate, candidate_records):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parent = 10**999 + 100
+            candidate_records.return_value = iter([(10**999, parent)])
+            source = root / "results/global_top_10.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps([{"starting_integer": str(parent)}]))
+            run_experiment(root, experiment_id="s1-cycles", count=1, strategy=S1_STRATEGY, prefix_length=17)
+            record = json.loads((root / "results/cycle_candidates.json").read_text())[0]
+            self.assertEqual(record["parent_starting_integer"], str(parent))
+            self.assertEqual(record["prefix_length"], 17)
+
+    @patch("bigcollatz.experiment.weighted_parity_prefix_candidate_records")
+    @patch("bigcollatz.experiment.evaluate", side_effect=duplicate_repeated_evaluate)
+    def test_s2_cycle_record_preserves_lineage(self, _evaluate, candidate_records):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parent = 10**999 + 100
+            candidate_records.return_value = iter([(10**999, parent)])
+            source = root / "results/e002-s1-parity-prefix-256/top_10.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps([{"parent_starting_integer": str(parent), "prefix_length": 256}]))
+            run_experiment(root, experiment_id="s2-cycles", count=1, strategy=S2_STRATEGY)
+            record = json.loads((root / "results/cycle_candidates.json").read_text())[0]
+            self.assertEqual(record["parent_starting_integer"], str(parent))
+            self.assertEqual(record["prefix_length"], 256)
+
+    @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
+    @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)
+    def test_no_repeated_state_does_not_create_or_modify_cycle_file(self, _evaluate, _candidates):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "results/cycle_candidates.json"
+            path.parent.mkdir(parents=True)
+            path.write_text("[]\n")
+            before = path.read_text()
+            run_experiment(root, experiment_id="no-cycles", count=3)
+            self.assertEqual(path.read_text(), before)
+
 if __name__ == "__main__":
     unittest.main()
