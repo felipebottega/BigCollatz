@@ -1,0 +1,21 @@
+{
+  "candidates_evaluated": 10000,
+  "experiment_id": "e001-s0-baseline",
+  "interrupted_count": 0,
+  "maximum_trajectory_length": 27442,
+  "mean_trajectory_length": 23988.1154,
+  "median_trajectory_length": 23967.0,
+  "p90_trajectory_length": 24989.0,
+  "p99_trajectory_length": 25886.02,
+  "reached_one_count": 10000,
+  "repeated_state_count": 0,
+  "strategy": {
+    "name": "S0-uniform-deterministic",
+    "parameters": {
+      "decimal_digits": 1000,
+      "seed": "baseline-v1"
+    }
+  },
+  "total_wall_time_seconds": 198.451134643,
+  "trajectories_per_second": 50.390238473512966
+}
