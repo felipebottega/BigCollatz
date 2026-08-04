@@ -6,6 +6,8 @@ import hashlib
 import json
 from collections import OrderedDict
 from collections.abc import Iterator
+from dataclasses import dataclass
+from typing import Any
 from pathlib import Path
 
 S0_STRATEGY = "S0-uniform-deterministic"
@@ -13,8 +15,26 @@ S1_STRATEGY = "S1-parity-prefix-top10"
 S2_STRATEGY = "S2-parity-prefix-weighted-lineages"
 S3_STRATEGY = "S3-recursive-weighted-lineages"
 S4_STRATEGY = "S4-diversified-mixed-prefix-top10"
+S5_STRATEGY = "S5-decimal-suffix-global-top10"
+S6_STRATEGY = "S6-binary-nearby-residue-global-top10"
 LINEAGE_STRATEGIES = frozenset((S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY))
+DECIMAL_SUFFIX_STRATEGIES = frozenset((S5_STRATEGY,))
+RESIDUE_STRATEGIES = frozenset((S6_STRATEGY,))
 DEFAULT_PREFIX_LENGTH = 256
+
+
+@dataclass(frozen=True)
+class CandidateRecord:
+    """Explicit candidate plus strategy-specific generation metadata."""
+
+    candidate: int
+    validation_mode: str
+    parent: int | None = None
+    prefix_length: int | None = None
+    suffix_digits: int | None = None
+    residue_modulus: int | None = None
+    residue: int | None = None
+    source_metadata: dict[str, Any] | None = None
 
 
 def _sample_below(width: int, seed: bytes, domain: bytes, attempt: int) -> int | None:
@@ -69,6 +89,20 @@ def validate_parity_prefix(candidate: int, parent: int,
                            prefix_length: int = DEFAULT_PREFIX_LENGTH) -> bool:
     """Directly validate that candidate and parent share a parity prefix."""
     return parity_decisions(candidate, prefix_length) == parity_decisions(parent, prefix_length)
+
+
+def validate_decimal_suffix(candidate: int, parent: int, suffix_digits: int) -> bool:
+    """Validate exact preservation of a decimal suffix from the source parent."""
+    if suffix_digits < 1:
+        raise ValueError("suffix_digits must be positive")
+    return candidate % (10 ** suffix_digits) == parent % (10 ** suffix_digits)
+
+
+def validate_residue(candidate: int, modulus: int, residue: int) -> bool:
+    """Validate exact preservation of an arbitrary modular residue."""
+    if modulus < 2:
+        raise ValueError("modulus must be at least 2")
+    return candidate % modulus == residue
 
 
 def _validate_canonical_1000_digit(value: object, source_name: str, path: Path) -> str:
@@ -294,3 +328,85 @@ def mixed_prefix_candidate_records(
             seen.add(candidate)
             produced += 1
             yield candidate, parent, prefix_length
+
+
+def decimal_suffix_candidate_records(
+    count: int, parents: list[int], seed: str = "decimal-suffix-v1", suffix_digits: int = 24,
+) -> Iterator[CandidateRecord]:
+    """Yield 1000-digit candidates preserving a parent's exact decimal suffix."""
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("count must be nonnegative")
+    if not parents:
+        raise ValueError("parents must be nonempty")
+    if not isinstance(suffix_digits, int) or isinstance(suffix_digits, bool) or suffix_digits < 1 or suffix_digits >= 1000:
+        raise ValueError("suffix_digits must be between 1 and 999")
+    modulus = 10 ** suffix_digits
+    allocation = balanced_allocation(count, parents)
+    low, high = 10**999, 10**1000 - 1
+    excluded = set(parents)
+    seen: set[int] = set()
+    seed_bytes = seed.encode()
+    for parent_index, (parent, quota) in enumerate(zip(parents, allocation)):
+        residue = parent % modulus
+        quotient_low = (low - residue + modulus - 1) // modulus
+        quotient_high = (high - residue) // modulus
+        width = quotient_high - quotient_low + 1
+        produced = attempt = 0
+        domain = S5_STRATEGY.encode() + b":" + parent_index.to_bytes(4, "big")
+        while produced < quota:
+            offset = _sample_below(width, seed_bytes, domain, attempt)
+            attempt += 1
+            if offset is None:
+                continue
+            candidate = residue + modulus * (quotient_low + offset)
+            if candidate in excluded or candidate in seen:
+                continue
+            seen.add(candidate)
+            produced += 1
+            yield CandidateRecord(
+                candidate=candidate, parent=parent, validation_mode="decimal_suffix",
+                suffix_digits=suffix_digits, source_metadata={"parent_index": parent_index},
+            )
+
+
+def binary_nearby_residue_candidate_records(
+    count: int, parents: list[int], seed: str = "binary-nearby-residue-v1", modulus_bits: int = 20,
+    radius: int = 3,
+) -> Iterator[CandidateRecord]:
+    """Yield candidates in nearby residues around each parent's low binary residue."""
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("count must be nonnegative")
+    if not parents:
+        raise ValueError("parents must be nonempty")
+    if not isinstance(modulus_bits, int) or isinstance(modulus_bits, bool) or modulus_bits < 2:
+        raise ValueError("modulus_bits must be at least 2")
+    if not isinstance(radius, int) or isinstance(radius, bool) or radius < 1:
+        raise ValueError("radius must be positive")
+    modulus = 1 << modulus_bits
+    cells = [(parent, delta, (parent + delta) % modulus) for parent in parents for delta in range(-radius, radius + 1) if delta != 0]
+    allocation = balanced_allocation(count, list(range(len(cells))))
+    low, high = 10**999, 10**1000 - 1
+    excluded = set(parents)
+    seen: set[int] = set()
+    seed_bytes = seed.encode()
+    for cell_index, ((parent, delta, residue), quota) in enumerate(zip(cells, allocation)):
+        quotient_low = (low - residue + modulus - 1) // modulus
+        quotient_high = (high - residue) // modulus
+        width = quotient_high - quotient_low + 1
+        produced = attempt = 0
+        domain = S6_STRATEGY.encode() + b":" + cell_index.to_bytes(4, "big")
+        while produced < quota:
+            offset = _sample_below(width, seed_bytes, domain, attempt)
+            attempt += 1
+            if offset is None:
+                continue
+            candidate = residue + modulus * (quotient_low + offset)
+            if candidate in excluded or candidate in seen:
+                continue
+            seen.add(candidate)
+            produced += 1
+            yield CandidateRecord(
+                candidate=candidate, parent=parent, validation_mode="residue",
+                residue_modulus=modulus, residue=residue,
+                source_metadata={"parent_index": parents.index(parent), "delta": delta, "modulus_bits": modulus_bits},
+            )

@@ -398,3 +398,92 @@ class EvaluatorUseTests(unittest.TestCase):
         import bigcollatz.experiment as experiment
         import bigcollatz.evaluator as evaluator
         self.assertIs(experiment.evaluate, evaluator.evaluate)
+
+class StrategySpecificValidationTests(unittest.TestCase):
+    @patch("bigcollatz.experiment.validate_parity_prefix", side_effect=AssertionError("wrong validator"))
+    @patch("bigcollatz.experiment.evaluate", return_value=EvaluationResult(0, 7, "reached_one", 0))
+    def test_s5_runner_uses_decimal_suffix_validator_and_preserves_metadata(self, _evaluate, _parity):
+        from bigcollatz.generator import S5_STRATEGY
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parent = 10**999 + 123456789
+            source = root / "results/global_top_10.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps([{"starting_integer": str(parent)}]))
+            result = run_experiment(root, experiment_id="s5", count=3, seed="fixture", strategy=S5_STRATEGY,
+                                    validate_candidates=True)
+            self.assertEqual(result["summary"]["strategy"]["parameters"]["suffix_digits"], 24)
+            self.assertTrue(all(entry["validation_mode"] == "decimal_suffix" for entry in result["top_10"]))
+            self.assertTrue(all(entry["suffix_digits"] == 24 for entry in result["top_10"]))
+
+    @patch("bigcollatz.experiment.decimal_suffix_candidate_records")
+    @patch("bigcollatz.experiment.evaluate", side_effect=duplicate_repeated_evaluate)
+    def test_s5_cycle_record_preserves_source_metadata(self, _evaluate, candidate_records):
+        from bigcollatz.generator import CandidateRecord, S5_STRATEGY
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parent = 10**999 + 123456789
+            candidate_records.return_value = iter([CandidateRecord(10**999 + 987654321, "decimal_suffix", parent=parent,
+                                                                   suffix_digits=24, source_metadata={"parent_index": 0})])
+            source = root / "results/global_top_10.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps([{"starting_integer": str(parent)}]))
+            run_experiment(root, experiment_id="s5-cycle", count=1, strategy=S5_STRATEGY)
+            record = json.loads((root / "results/cycle_candidates.json").read_text())[0]
+            self.assertEqual(record["parent_starting_integer"], str(parent))
+            self.assertEqual(record["suffix_digits"], 24)
+            self.assertEqual(record["source_metadata"], {"parent_index": 0})
+
+    @patch("bigcollatz.experiment.validate_parity_prefix", side_effect=AssertionError("wrong validator"))
+    @patch("bigcollatz.experiment.evaluate", return_value=EvaluationResult(0, 7, "reached_one", 0))
+    def test_s6_runner_uses_residue_validator_and_preserves_metadata(self, _evaluate, _parity):
+        from bigcollatz.generator import S6_STRATEGY
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parent = 10**999 + 123456789
+            source = root / "results/global_top_10.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps([{"starting_integer": str(parent)}]))
+            result = run_experiment(root, experiment_id="s6", count=4, seed="fixture", strategy=S6_STRATEGY,
+                                    validate_candidates=True)
+            self.assertEqual(result["summary"]["strategy"]["parameters"]["modulus_bits"], 20)
+            self.assertTrue(all(entry["validation_mode"] == "residue" for entry in result["top_10"]))
+            self.assertTrue(all(entry["residue_modulus"] == 1 << 20 for entry in result["top_10"]))
+
+    @patch("bigcollatz.experiment.decimal_suffix_candidate_records")
+    @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)
+    def test_s5_invalid_metadata_is_rejected_with_validation_enabled(self, _evaluate, candidate_records):
+        from bigcollatz.generator import CandidateRecord, S5_STRATEGY
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parent = 10**999 + 123456789
+            candidate_records.return_value = iter([CandidateRecord(10**999 + 1, "decimal_suffix", parent=parent,
+                                                                   suffix_digits=6)])
+            source = root / "results/global_top_10.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps([{"starting_integer": str(parent)}]))
+            with self.assertRaisesRegex(ValueError, "decimal suffix"):
+                run_experiment(root, experiment_id="s5-invalid", count=1, strategy=S5_STRATEGY,
+                               validate_candidates=True)
+
+class S6CycleMetadataTests(unittest.TestCase):
+    @patch("bigcollatz.experiment.binary_nearby_residue_candidate_records")
+    @patch("bigcollatz.experiment.evaluate", side_effect=duplicate_repeated_evaluate)
+    def test_s6_cycle_record_preserves_source_metadata(self, _evaluate, candidate_records):
+        from bigcollatz.generator import CandidateRecord, S6_STRATEGY
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parent = 10**999 + 123456789
+            candidate_records.return_value = iter([CandidateRecord(
+                10**999 + 7, "residue", parent=parent, residue_modulus=16, residue=7,
+                source_metadata={"parent_index": 0, "delta": 2, "modulus_bits": 4},
+            )])
+            source = root / "results/global_top_10.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps([{"starting_integer": str(parent)}]))
+            run_experiment(root, experiment_id="s6-cycle", count=1, strategy=S6_STRATEGY)
+            record = json.loads((root / "results/cycle_candidates.json").read_text())[0]
+            self.assertEqual(record["parent_starting_integer"], str(parent))
+            self.assertEqual(record["residue_modulus"], 16)
+            self.assertEqual(record["residue"], 7)
+            self.assertEqual(record["source_metadata"], {"parent_index": 0, "delta": 2, "modulus_bits": 4})

@@ -230,3 +230,26 @@ class WeightedLineageGeneratorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ExplicitRecordGeneratorTests(unittest.TestCase):
+    def test_decimal_suffix_records_validate_without_parity_claim(self):
+        from bigcollatz.generator import decimal_suffix_candidate_records, validate_decimal_suffix, validate_parity_prefix
+        parents = [10**999 + 123456789, 2 * 10**999 + 987654321]
+        records = list(decimal_suffix_candidate_records(10, parents, "fixture", 6))
+        self.assertEqual(len(records), 10)
+        self.assertEqual(len({record.candidate for record in records}), 10)
+        self.assertTrue(all(len(str(record.candidate)) == 1000 for record in records))
+        self.assertTrue(all(record.validation_mode == "decimal_suffix" for record in records))
+        self.assertTrue(all(validate_decimal_suffix(record.candidate, record.parent, record.suffix_digits) for record in records))
+        self.assertFalse(all(validate_parity_prefix(record.candidate, record.parent, 16) for record in records))
+
+    def test_binary_nearby_residue_records_validate_with_delta_metadata(self):
+        from bigcollatz.generator import binary_nearby_residue_candidate_records, validate_residue
+        parents = [10**999 + 12345, 2 * 10**999 + 67890]
+        records = list(binary_nearby_residue_candidate_records(12, parents, "fixture", 8, 2))
+        self.assertEqual(len(records), 12)
+        self.assertEqual(len({record.candidate for record in records}), 12)
+        self.assertTrue(all(record.validation_mode == "residue" for record in records))
+        self.assertEqual({record.residue_modulus for record in records}, {256})
+        self.assertTrue(all(record.source_metadata["delta"] in {-2, -1, 1, 2} for record in records))
+        self.assertTrue(all(validate_residue(record.candidate, record.residue_modulus, record.residue) for record in records))

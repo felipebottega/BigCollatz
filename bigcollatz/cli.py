@@ -20,7 +20,7 @@ def main() -> None:
     run.add_argument("--prefix-length", type=int, default=DEFAULT_PREFIX_LENGTH,
                      help="parity decisions preserved by the S1 strategy (default: 256)")
     run.add_argument("--validate-candidates", action="store_true",
-                     help="directly verify every generated S1 parity prefix")
+                     help="run strategy-specific validation on every generated candidate")
     run.add_argument("--output-root", type=Path, default=Path("."))
     args = parser.parse_args()
     if args.command == "run":

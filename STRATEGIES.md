@@ -66,3 +66,11 @@ signal without further narrowing to the two dominant recursive lineages. The
 strategy is controlled by the seed, parent file, prefix-length tuple, and total
 candidate count. It has been piloted as P003 only; no full experiment has been
 run.
+
+## S5-decimal-suffix-global-top10
+
+S5 tests whether decimal locality around strong starts carries useful signal independent of parity-prefix preservation. It reads `results/global_top_10.json`, balances allocation across the parents, preserves each parent's exact final 24 decimal digits, and samples deterministic SHA-256 quotient lifts across the full 1000-digit interval. A generated candidate is valid only when it has exactly 1,000 digits, is distinct, excludes source parents, and satisfies `candidate % 10^24 == parent % 10^24`. The runner records `validation_mode=decimal_suffix`, `suffix_digits`, `parent_starting_integer`, and source metadata; it must use the decimal-suffix validator rather than the parity-prefix validator. P005 was inconclusive and not promoted: the 300-candidate pilot reached maximum length 25,846 with no repeated state.
+
+## S6-binary-nearby-residue-global-top10
+
+S6 tests low-bit modular neighborhoods around strong starts without preserving the exact parent residue or any parity prefix. It reads `results/global_top_10.json`; for every parent and every nonzero delta in `{-3,-2,-1,1,2,3}`, it samples deterministic SHA-256 quotient lifts satisfying `candidate ≡ parent + delta (mod 2^20)` across the full 1000-digit interval. A generated candidate is valid only when it has exactly 1,000 digits, is distinct, excludes source parents, and satisfies its recorded `residue` modulo its recorded `residue_modulus`. The runner records `validation_mode=residue`, `residue_modulus`, `residue`, `parent_starting_integer`, and source metadata; it must use the residue validator rather than parity-prefix or decimal-suffix validation. P006 was supported for targeted follow-up but not promoted directly: the 300-candidate pilot reached maximum length 27,087 with no repeated state, close to but below the E004 record of 27,707.
