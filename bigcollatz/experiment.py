@@ -11,14 +11,14 @@ from typing import Any
 
 from .evaluator import evaluate
 from .generator import (
-    DEFAULT_PREFIX_LENGTH, S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, LINEAGE_STRATEGIES, balanced_allocation,
+    DEFAULT_PREFIX_LENGTH, S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, S5_STRATEGY, S6_STRATEGY, LINEAGE_STRATEGIES, balanced_allocation,
     baseline_candidates, load_global_top_10, load_lineage_weights, parity_prefix_candidate_records,
-    mixed_prefix_candidate_records, validate_parity_prefix, weighted_allocation, weighted_parity_prefix_candidate_records,
+    mixed_prefix_candidate_records, productivity_weighted_cell_records, suffix_perturbation_candidate_records, validate_parity_prefix, weighted_allocation, weighted_parity_prefix_candidate_records,
 )
 
 DEFAULT_CANDIDATE_COUNT = 10_000
 STRATEGY = S0_STRATEGY
-SUPPORTED_STRATEGIES = (S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY)
+SUPPORTED_STRATEGIES = (S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, S5_STRATEGY, S6_STRATEGY)
 COMPLETED_OUTCOMES = frozenset(("reached_one", "repeated_state"))
 
 
@@ -138,6 +138,43 @@ def run_experiment(
             ],
         })
         candidate_records = mixed_prefix_candidate_records(count, parents, seed, prefix_lengths)
+    elif strategy == S5_STRATEGY:
+        source = output_root / "results" / "global_top_10.json"
+        parents = load_global_top_10(source)
+        prefix_lengths = (192, 256, 320)
+        parent_rank_weights = [len(parents) - index for index in range(len(parents))]
+        prefix_weights = {192: 2, 256: 4, 320: 3}
+        cell_weights = [parent_weight * prefix_weights[prefix]
+                        for parent_weight in parent_rank_weights for prefix in prefix_lengths]
+        allocation = weighted_allocation(count, cell_weights)
+        parameters.update({
+            "source_global_top_10_file": "results/global_top_10.json",
+            "prefix_lengths": list(prefix_lengths),
+            "parent_rank_weights": parent_rank_weights,
+            "prefix_weights": prefix_weights,
+            "number_of_parents_used": len(parents),
+            "deterministic_seed": seed,
+            "allocation_per_parent_prefix": [
+                {"parent": str(parent), "prefix_length": prefix, "cell_weight": weight, "candidate_count": allocated}
+                for (parent, prefix), weight, allocated in zip(
+                    [(parent, prefix) for parent in parents for prefix in prefix_lengths], cell_weights, allocation
+                )
+            ],
+        })
+        candidate_records = productivity_weighted_cell_records(count, parents, seed, prefix_lengths)
+    elif strategy == S6_STRATEGY:
+        source = output_root / "results" / "global_top_10.json"
+        parents = load_global_top_10(source)
+        parent = parents[0]
+        suffix_digits = 240
+        parameters.update({
+            "source_global_top_10_file": "results/global_top_10.json",
+            "parent": str(parent),
+            "suffix_digits": suffix_digits,
+            "preserved_decimal_prefix_digits": 1000 - suffix_digits,
+            "deterministic_seed": seed,
+        })
+        candidate_records = suffix_perturbation_candidate_records(count, parent, seed, suffix_digits)
     elif strategy in (S2_STRATEGY, S3_STRATEGY):
         if strategy == S2_STRATEGY:
             source_relative = "results/e002-s1-parity-prefix-256/top_10.json"

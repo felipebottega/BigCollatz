@@ -13,7 +13,9 @@ S1_STRATEGY = "S1-parity-prefix-top10"
 S2_STRATEGY = "S2-parity-prefix-weighted-lineages"
 S3_STRATEGY = "S3-recursive-weighted-lineages"
 S4_STRATEGY = "S4-diversified-mixed-prefix-top10"
-LINEAGE_STRATEGIES = frozenset((S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY))
+S5_STRATEGY = "S5-productivity-weighted-prefix-cells"
+S6_STRATEGY = "S6-best-neighborhood-suffix-perturbation"
+LINEAGE_STRATEGIES = frozenset((S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, S5_STRATEGY))
 DEFAULT_PREFIX_LENGTH = 256
 
 
@@ -294,3 +296,74 @@ def mixed_prefix_candidate_records(
             seen.add(candidate)
             produced += 1
             yield candidate, parent, prefix_length
+
+
+def productivity_weighted_cell_records(
+    count: int, parents: list[int], seed: str = "cell-weighted-v1",
+    prefix_lengths: tuple[int, ...] = (192, 256, 320),
+) -> Iterator[tuple[int, int, int]]:
+    """Yield candidates from rank- and prefix-weighted parent/prefix cells."""
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("count must be nonnegative")
+    if not parents:
+        raise ValueError("parents must be nonempty")
+    if (not prefix_lengths or any(not isinstance(length, int) or isinstance(length, bool) or length < 1
+                                  for length in prefix_lengths)):
+        raise ValueError("prefix_lengths must contain positive integers")
+    prefix_weight = {192: 2, 256: 4, 320: 3}
+    cells = [(parent, prefix_length) for parent in parents for prefix_length in prefix_lengths]
+    weights = [max(1, len(parents) - parent_index) * prefix_weight.get(prefix_length, 1)
+               for parent_index, parent in enumerate(parents) for prefix_length in prefix_lengths]
+    allocation = weighted_allocation(count, weights)
+    low, high = 10**999, 10**1000 - 1
+    excluded = set(parents)
+    seen: set[int] = set()
+    seed_bytes = seed.encode()
+    for cell_index, ((parent, prefix_length), quota) in enumerate(zip(cells, allocation)):
+        modulus = 1 << prefix_length
+        residue = parent % modulus
+        quotient_low = (low - residue + modulus - 1) // modulus
+        quotient_high = (high - residue) // modulus
+        width = quotient_high - quotient_low + 1
+        produced = attempt = 0
+        domain = S5_STRATEGY.encode() + b":" + cell_index.to_bytes(4, "big")
+        while produced < quota:
+            offset = _sample_below(width, seed_bytes, domain, attempt)
+            attempt += 1
+            if offset is None:
+                continue
+            candidate = residue + modulus * (quotient_low + offset)
+            if candidate in excluded or candidate in seen:
+                continue
+            seen.add(candidate)
+            produced += 1
+            yield candidate, parent, prefix_length
+
+
+def suffix_perturbation_candidate_records(
+    count: int, parent: int, seed: str = "suffix-perturb-v1", suffix_digits: int = 240,
+) -> Iterator[tuple[int, int]]:
+    """Yield 1000-digit candidates sharing a long decimal prefix with one parent."""
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("count must be nonnegative")
+    if not isinstance(suffix_digits, int) or isinstance(suffix_digits, bool) or not 1 <= suffix_digits < 1000:
+        raise ValueError("suffix_digits must be an integer between 1 and 999")
+    parent_text = str(parent)
+    if len(parent_text) != 1000 or parent_text[0] == "0":
+        raise ValueError("parent must be a canonical 1000-digit integer")
+    modulus = 10 ** suffix_digits
+    base = (parent // modulus) * modulus
+    seed_bytes = seed.encode()
+    seen: set[int] = set()
+    produced = attempt = 0
+    while produced < count:
+        suffix = _sample_below(modulus, seed_bytes, S6_STRATEGY.encode(), attempt)
+        attempt += 1
+        if suffix is None:
+            continue
+        candidate = base + suffix
+        if candidate == parent or len(str(candidate)) != 1000 or candidate in seen:
+            continue
+        seen.add(candidate)
+        produced += 1
+        yield candidate, parent

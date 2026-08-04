@@ -228,5 +228,31 @@ class WeightedLineageGeneratorTests(unittest.TestCase):
             self.assertTrue(validate_parity_prefix(candidate, parent, prefix))
 
 
+class NewResearchStrategyGeneratorTests(unittest.TestCase):
+    def test_productivity_weighted_cells_are_distinct_and_validate(self):
+        from bigcollatz.generator import productivity_weighted_cell_records
+        parents = [10**999 + 12345, 2 * 10**999 + 67890, 3 * 10**999 + 13579]
+        records = list(productivity_weighted_cell_records(30, parents, "fixture", (8, 12)))
+        candidates = [candidate for candidate, _, _ in records]
+        self.assertEqual(len(candidates), len(set(candidates)))
+        self.assertTrue(all(len(str(candidate)) == 1000 for candidate in candidates))
+        counts = {parent: 0 for parent in parents}
+        for candidate, parent, prefix in records:
+            counts[parent] += 1
+            self.assertTrue(validate_parity_prefix(candidate, parent, prefix))
+        self.assertGreater(counts[parents[0]], counts[parents[-1]])
+
+    def test_suffix_perturbation_preserves_decimal_prefix(self):
+        from bigcollatz.generator import suffix_perturbation_candidate_records
+        parent = int("8" * 1000)
+        records = list(suffix_perturbation_candidate_records(25, parent, "fixture", suffix_digits=40))
+        candidates = [candidate for candidate, source in records]
+        self.assertEqual(len(candidates), len(set(candidates)))
+        self.assertTrue(all(source == parent for _, source in records))
+        self.assertTrue(all(len(str(candidate)) == 1000 for candidate in candidates))
+        self.assertTrue(all(str(candidate)[:960] == str(parent)[:960] for candidate in candidates))
+        self.assertNotIn(parent, candidates)
+
+
 if __name__ == "__main__":
     unittest.main()

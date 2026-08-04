@@ -66,3 +66,11 @@ signal without further narrowing to the two dominant recursive lineages. The
 strategy is controlled by the seed, parent file, prefix-length tuple, and total
 candidate count. It has been piloted as P003 only; no full experiment has been
 run.
+
+## S5-productivity-weighted-prefix-cells
+
+S5 tests the hypothesis that useful post-E004 signal is concentrated in parent/prefix cells rather than uniformly across all global top parents or all prefix lengths. It reads `results/global_top_10.json`, forms cells from each top-10 parent crossed with prefix lengths 192, 256, and 320, and samples the same exact parity-prefix residue classes as the earlier guided strategies. Allocation is deterministic and proportional to a compact score: parent rank weights 10 down to 1 multiplied by prefix weights 2, 4, and 3 for 192, 256, and 320 respectively. Every candidate must be distinct, have exactly 1,000 digits, exclude source parents, and optionally pass direct parity-prefix validation. P005 showed a better median than uniform mixed-prefix P003, but its maximum was too weak for full promotion. Current status: inconclusive to weakly rejected for full scale.
+
+## S6-best-neighborhood-suffix-perturbation
+
+S6 tests a non-prefix local-neighborhood hypothesis around the current E004 global-best starting integer. It reads the first entry of `results/global_top_10.json`, preserves a long decimal prefix, and replaces only the final 240 decimal digits with deterministic SHA-256 samples. This deliberately does not preserve a prescribed Collatz parity prefix; it asks whether nearby decimal starts share enough high-level trajectory structure to create a plateau of delayed descent. Validation requires distinct 1,000-digit candidates and exclusion of the source parent. P006 and P007 each evaluated 300 candidates with independent seeds and both produced non-parent candidates tying the current 27,707 trajectory record with no repeated state. Current status: supported for a correctness-gated E005 full experiment or a narrower suffix-width sensitivity pilot.
