@@ -174,6 +174,7 @@ def run_experiment(
     else:
         candidate_records = ((candidate, None) for candidate in baseline_candidates(count, seed=seed))
     lengths: list[int] = []
+    cell_lengths: dict[tuple[str, int], list[int]] = {}
     outcomes = {"reached_one": 0, "repeated_state": 0, "interrupted": 0}
     top_heap: list[tuple[tuple[int, int], dict[str, Any]]] = []
     cycle_candidates: list[dict[str, Any]] = []
@@ -200,6 +201,8 @@ def run_experiment(
         if result.outcome not in COMPLETED_OUTCOMES:
             continue
         lengths.append(result.total_steps_executed)
+        if parent is not None:
+            cell_lengths.setdefault((str(parent), candidate_prefix_length), []).append(result.total_steps_executed)
         entry = {
             "starting_integer": str(candidate),
             "total_unaccelerated_trajectory_length": result.total_steps_executed,
@@ -221,6 +224,19 @@ def run_experiment(
     elapsed_seconds = (time.perf_counter_ns() - started) / 1e9
     top_10 = [entry for _, entry in sorted(top_heap, reverse=True)]
     repeated_lengths = [record["cycle_length"] for record in cycle_candidates]
+    cell_statistics = []
+    for (parent_value, cell_prefix_length), cell_values in sorted(
+            cell_lengths.items(), key=lambda item: (-max(item[1]), -statistics.fmean(item[1]), item[0][1], item[0][0])):
+        cell_statistics.append({
+            "parent_starting_integer": parent_value,
+            "prefix_length": cell_prefix_length,
+            "completed_count": len(cell_values),
+            "mean_trajectory_length": statistics.fmean(cell_values),
+            "median_trajectory_length": statistics.median(cell_values),
+            "p90_trajectory_length": _percentile(cell_values, .90),
+            "maximum_trajectory_length": max(cell_values),
+        })
+
     summary = {
         "experiment_id": experiment_id,
         "strategy": {"name": strategy, "parameters": parameters},
@@ -236,6 +252,8 @@ def run_experiment(
         "total_wall_time_seconds": elapsed_seconds,
         "trajectories_per_second": count / elapsed_seconds,
     }
+    if cell_statistics:
+        summary["cell_statistics"] = cell_statistics
     if repeated_lengths:
         summary.update(
             nontrivial_cycle_candidate_count=len(repeated_lengths),
@@ -264,6 +282,16 @@ def run_experiment(
                        if strategy in LINEAGE_STRATEGIES else "")
         lines.append(f"| `{_abbreviate(entry['starting_integer'])}` | {parent_cell}{entry['total_unaccelerated_trajectory_length']} | "
                      f"`{_abbreviate(entry['maximum_integer_reached'])}` | {entry['outcome']} | {entry['runtime_seconds']:.6f} |")
+    if cell_statistics:
+        lines += ["", "## Cell statistics", "", "| Parent (abbreviated) | Prefix | Completed | Mean | Median | P90 | Maximum |",
+                  "| --- | ---: | ---: | ---: | ---: | ---: | ---: |"]
+        for cell in cell_statistics[:10]:
+            lines.append(
+                f"| `{_abbreviate(cell['parent_starting_integer'])}` | {cell['prefix_length']} | "
+                f"{cell['completed_count']} | {cell['mean_trajectory_length']:.3f} | "
+                f"{cell['median_trajectory_length']} | {cell['p90_trajectory_length']} | "
+                f"{cell['maximum_trajectory_length']} |"
+            )
     if top_10:
         lines += ["", "## Best starting integer (complete)", "", "```text", top_10[0]["starting_integer"], "```", ""]
     (result_dir / "summary.md").write_text("\n".join(lines))

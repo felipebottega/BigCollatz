@@ -51,3 +51,20 @@
 - **Comparison:** this was weaker than P003, P002, P001, E003, and E004 on maximum and p99.
 - **Conclusion:** rejected for full experiment; merely shortening the prefix loses too much high-tail structure.
 - **Next decision:** stop before a full experiment because the two new pilots did not justify the 10,000-candidate budget; next direction should combine diversity with a stronger parent signal, e.g. rank parent/prefix cells by pilot productivity and only then allocate a full run.
+
+## P005 — S4 cell-productivity pilot with per-cell statistics
+
+- **Hypothesis:** the weak uniform S4 mixed-prefix signal hides useful productivity in particular `(parent_starting_integer, prefix_length)` cells, so a compact balanced pilot with explicit cell statistics can identify whether a selected-cell follow-up is justified.
+- **Strategy:** `S4-diversified-mixed-prefix-top10`, seed `cell-productivity-v1`, temporary output root so persistent `results/global_top_10.json` was not updated.
+- **Implementation change:** the experiment runner now records compact per-cell statistics for all lineage strategies whenever a completed candidate has a parent and prefix length.
+- **Parameters:** 900 distinct 1000-digit candidates; 10 current global-top parents; prefix lengths 128, 256, and 384; exactly 30 candidates per parent/prefix cell; candidate validation enabled.
+- **Result:** 900 reached `1`; 0 repeated state; 0 interrupted; mean 24,160.5378; median 24,160.0; p90 25,145.1; p99 26,135.52; maximum 26,729; about 25.276 trajectories/s.
+- **Top cells by cell maximum:**
+  - Prefix 384 under parent `6737013310778104…7798508614155589`: count 30; mean 24,464.9; max 26,729.
+  - Prefix 128 under parent `9600562701858268…3625762246478235`: count 30; mean 24,449.3; max 26,540.
+  - Prefix 256 under parent `8826636225257441…9267257417891141`: count 30; mean 24,184.1; max 26,459.
+  - Prefix 384 under parent `9590801569104990…1619023447883077`: count 30; mean 24,130.4; max 26,302.
+  - Prefix 256 under parent `8146724180242977…0926154567895451`: count 30; mean 24,460.3; max 26,281.
+- **Comparison:** the pilot's maximum did not beat P003 (26,969), P002 (27,251), P001 (27,432), E003 (27,445), or E004 (27,707). Cell maxima were noisy at 30 samples per cell, but the top-five cells included all three tested prefix lengths rather than confirming uniform prefix-256 dominance.
+- **Conclusion:** reject immediate full promotion of balanced S4 or a selected-cell full experiment from only 30 samples per cell. The new per-cell statistics are useful instrumentation and should be kept.
+- **Next decision:** run a refined pilot that allocates more candidates only to the P005 top cells and compares them against a small recursive-256 control, before spending a full 10,000-candidate budget.

@@ -121,6 +121,7 @@ class ExperimentTests(unittest.TestCase):
                                 for entry in persistent_global))
             report = (root / "results/guided-lineage/summary.md").read_text()
             self.assertIn("Parent (abbreviated)", report)
+            self.assertIn("## Cell statistics", report)
             self.assertIn("…", report)
 
 
@@ -173,6 +174,8 @@ class ExperimentTests(unittest.TestCase):
                                 for entry in persistent_global))
             report = (root / "results/s2-lineage/summary.md").read_text()
             self.assertIn("Parent (abbreviated)", report)
+            self.assertIn("cell_statistics", result["summary"])
+            self.assertEqual(result["summary"]["cell_statistics"][0]["maximum_trajectory_length"], 3)
 
 
     @patch("bigcollatz.experiment.weighted_parity_prefix_candidate_records")
@@ -247,7 +250,13 @@ class ExperimentTests(unittest.TestCase):
                              [1, 1, 1, 1, 1, 1])
             self.assertTrue(all("parent_starting_integer" in entry for entry in result["top_10"]))
             self.assertEqual(sorted({entry["prefix_length"] for entry in result["top_10"]}), [128, 256, 384])
-            self.assertIn("Parent (abbreviated)", (root / "results/s4-mixed/summary.md").read_text())
+            report = (root / "results/s4-mixed/summary.md").read_text()
+            self.assertIn("Parent (abbreviated)", report)
+            self.assertIn("## Cell statistics", report)
+            cells = result["summary"]["cell_statistics"]
+            self.assertEqual(len(cells), 6)
+            self.assertEqual(cells[0]["maximum_trajectory_length"], 5)
+            self.assertEqual(cells[0]["prefix_length"], 384)
             candidate_records.assert_called_once_with(6, parents, "fixture", (128, 256, 384))
 
 

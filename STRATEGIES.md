@@ -66,3 +66,8 @@ signal without further narrowing to the two dominant recursive lineages. The
 strategy is controlled by the seed, parent file, prefix-length tuple, and total
 candidate count. It has been piloted as P003 only; no full experiment has been
 run.
+
+
+### Cell-level instrumentation
+
+As of P005, the experiment runner records `cell_statistics` in `summary.json` for lineage strategies whenever completed candidates carry both `parent_starting_integer` and `prefix_length`. Each cell stores completed count, mean, median, p90, and maximum trajectory length, and `summary.md` prints the top cells by maximum. This is instrumentation rather than a new generator: it supports testing whether mixed parent/prefix productivity is concentrated in a few cells before promoting selected-cell experiments.
