@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from bigcollatz.experiment import DEFAULT_CANDIDATE_COUNT, STRATEGY, run_experiment
-from bigcollatz.generator import S1_STRATEGY, S2_STRATEGY, S3_STRATEGY
+from bigcollatz.generator import S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY
 from bigcollatz.model import EvaluationResult
 
 
@@ -214,6 +214,42 @@ class ExperimentTests(unittest.TestCase):
             self.assertTrue(all("parent_starting_integer" in entry and entry["prefix_length"] == 256
                                 for entry in result["global_top_10"]))
             self.assertIn("Parent (abbreviated)", (root / "results/s3-lineage/summary.md").read_text())
+
+
+
+    @patch("bigcollatz.experiment.mixed_prefix_candidate_records")
+    @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)
+    def test_s4_records_mixed_prefix_lineage_outputs_and_report(self, _evaluate, candidate_records):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parents = [10**999 + 101, 2 * 10**999 + 202]
+            candidates = [10**999 + ordinal for ordinal in range(6)]
+            prefixes = [128, 256, 384, 128, 256, 384]
+            candidate_records.return_value = iter([
+                (candidate, parents[index % 2], prefixes[index])
+                for index, candidate in enumerate(candidates)
+            ])
+            source = root / "results/global_top_10.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps([
+                {"starting_integer": str(parent)} for parent in parents
+            ]))
+
+            result = run_experiment(root, experiment_id="s4-mixed", count=6, seed="fixture",
+                                    strategy=S4_STRATEGY)
+
+            parameters = result["summary"]["strategy"]["parameters"]
+            self.assertEqual(parameters["source_global_top_10_file"], "results/global_top_10.json")
+            self.assertEqual(parameters["prefix_lengths"], [128, 256, 384])
+            self.assertEqual(parameters["number_of_parents_used"], 2)
+            self.assertEqual(parameters["deterministic_seed"], "fixture")
+            self.assertEqual([item["candidate_count"] for item in parameters["allocation_per_parent_prefix"]],
+                             [1, 1, 1, 1, 1, 1])
+            self.assertTrue(all("parent_starting_integer" in entry for entry in result["top_10"]))
+            self.assertEqual(sorted({entry["prefix_length"] for entry in result["top_10"]}), [128, 256, 384])
+            self.assertIn("Parent (abbreviated)", (root / "results/s4-mixed/summary.md").read_text())
+            candidate_records.assert_called_once_with(6, parents, "fixture", (128, 256, 384))
+
 
     @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
     @patch("bigcollatz.experiment.evaluate", side_effect=fake_evaluate)

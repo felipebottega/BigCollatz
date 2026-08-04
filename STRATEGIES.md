@@ -51,3 +51,18 @@ the E003 source file, prefix length, deterministic seed, productive lineage
 count, lineage weights, and final per-parent allocation in `summary.json`. The real 10,000-candidate S3 experiment was executed as
 `e004-s3-recursive-weighted-lineages-256`, with generated artifacts stored under
 `results/e004-s3-recursive-weighted-lineages-256/`.
+
+## S4-diversified-mixed-prefix-top10
+
+S4 uses the persistent `results/global_top_10.json` parents and preserves several
+prefix lengths in one experiment instead of committing to one fixed parity-prefix
+scale. For each global top-10 parent and each prefix length in 128, 256, and 384,
+it samples deterministic SHA-256 quotient lifts in the matching residue class
+inside the 1000-digit interval. Allocation is balanced across all parent/prefix
+cells, every candidate is distinct, source parents are excluded, and optional
+validation directly checks the assigned parity prefix. This tests whether
+lineage diversity plus mixed prefix granularity can preserve the strong E004
+signal without further narrowing to the two dominant recursive lineages. The
+strategy is controlled by the seed, parent file, prefix-length tuple, and total
+candidate count. It has been piloted as P003 only; no full experiment has been
+run.

@@ -12,7 +12,8 @@ S0_STRATEGY = "S0-uniform-deterministic"
 S1_STRATEGY = "S1-parity-prefix-top10"
 S2_STRATEGY = "S2-parity-prefix-weighted-lineages"
 S3_STRATEGY = "S3-recursive-weighted-lineages"
-LINEAGE_STRATEGIES = frozenset((S1_STRATEGY, S2_STRATEGY, S3_STRATEGY))
+S4_STRATEGY = "S4-diversified-mixed-prefix-top10"
+LINEAGE_STRATEGIES = frozenset((S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY))
 DEFAULT_PREFIX_LENGTH = 256
 
 
@@ -255,3 +256,41 @@ def parity_prefix_candidates(count: int, parents: list[int], seed: str = "parity
     """Yield only candidate values for the guided strategy."""
     for candidate, _ in parity_prefix_candidate_records(count, parents, seed, prefix_length):
         yield candidate
+
+def mixed_prefix_candidate_records(
+    count: int, parents: list[int], seed: str = "mixed-prefix-v1",
+    prefix_lengths: tuple[int, ...] = (128, 256, 384),
+) -> Iterator[tuple[int, int, int]]:
+    """Yield candidates spread evenly across parent/prefix combinations."""
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("count must be nonnegative")
+    if not parents:
+        raise ValueError("parents must be nonempty")
+    if (not prefix_lengths or any(not isinstance(length, int) or isinstance(length, bool) or length < 1
+                                  for length in prefix_lengths)):
+        raise ValueError("prefix_lengths must contain positive integers")
+    pairs = [(parent, prefix_length) for parent in parents for prefix_length in prefix_lengths]
+    allocation = balanced_allocation(count, list(range(len(pairs))))
+    low, high = 10**999, 10**1000 - 1
+    excluded = set(parents)
+    seen: set[int] = set()
+    seed_bytes = seed.encode()
+    for pair_index, ((parent, prefix_length), quota) in enumerate(zip(pairs, allocation)):
+        modulus = 1 << prefix_length
+        residue = parent % modulus
+        quotient_low = (low - residue + modulus - 1) // modulus
+        quotient_high = (high - residue) // modulus
+        width = quotient_high - quotient_low + 1
+        produced = attempt = 0
+        domain = S4_STRATEGY.encode() + b":" + pair_index.to_bytes(4, "big")
+        while produced < quota:
+            offset = _sample_below(width, seed_bytes, domain, attempt)
+            attempt += 1
+            if offset is None:
+                continue
+            candidate = residue + modulus * (quotient_low + offset)
+            if candidate in excluded or candidate in seen:
+                continue
+            seen.add(candidate)
+            produced += 1
+            yield candidate, parent, prefix_length
