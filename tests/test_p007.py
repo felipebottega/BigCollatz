@@ -80,6 +80,7 @@ class P007RankingTests(unittest.TestCase):
             self.assertFalse(Path(top_30_path).is_absolute())
             self.assertFalse(top_30_path.startswith("/"))
             self.assertNotIn("/workspace/BigCollatz", top_30_path)
+            self.assertNotIn("\\", top_30_path)
             self.assertEqual(top_30_path, "results/p/top_30.json")
 
 if __name__ == "__main__":
