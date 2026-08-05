@@ -76,6 +76,11 @@ class P007RankingTests(unittest.TestCase):
             self.assertEqual(s["candidates_evaluated"], 1)
             self.assertIsNotNone(s["cells"][0]["deterministic_score"])
             self.assertIn("top_30", s["artifact_paths"])
+            top_30_path = s["artifact_paths"]["top_30"]
+            self.assertFalse(Path(top_30_path).is_absolute())
+            self.assertFalse(top_30_path.startswith("/"))
+            self.assertNotIn("/workspace/BigCollatz", top_30_path)
+            self.assertEqual(top_30_path, "results/p/top_30.json")
 
 if __name__ == "__main__":
     unittest.main()

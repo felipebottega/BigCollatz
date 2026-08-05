@@ -215,7 +215,7 @@ def run_adaptive_pilot(output_root: Path, *, pilot_id: str, deterministic_seed: 
             cell_summaries.append({**_cell_dict(cell),"requested_candidate_count":cell.candidate_count,"candidates_evaluated":evaluated,"reached_one_count":counts["reached_one"],"repeated_state_count":counts["repeated_state"],"interrupted_count":counts["interrupted"],"mean_trajectory_length":statistics.fmean(lengths),"median_trajectory_length":statistics.median(lengths),"p90_trajectory_length":_percentile(lengths,.9),"p99_trajectory_length":p99,"p99_fallback_trajectory_length":max(lengths),"maximum_trajectory_length":max(lengths),"maximum_integer_reached":str(maxint),"recurrence_metric_aggregates":aggs,"runtime_seconds":runtime,"trajectories_per_second":_trajectories_per_second(evaluated, runtime),"_lengths":lengths})
         if total != requested or len(seen)!=total: raise ValueError("pilot count mismatch")
         _finalize_completed_cells(cell_summaries, trajectories)
-        artifacts["top_30"] = str(result_dir / "top_30.json")
+        artifacts["top_30"] = str(Path("results") / pilot_id / "top_30.json")
         (result_dir / "top_30.json").write_text(json.dumps(rank_trajectories(trajectories, 30), indent=2, sort_keys=True)+"\n")
         summary = write_summary("completed", False)
         summary["overall_pilot_top_tail_count"] = sum(s["overall_pilot_top_tail_count"] for s in cell_summaries)

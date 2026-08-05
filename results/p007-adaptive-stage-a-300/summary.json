@@ -1,6 +1,6 @@
 {
   "artifact_paths": {
-    "top_30": "/workspace/BigCollatz/results/p007-adaptive-stage-a-300/top_30.json"
+    "top_30": "results/p007-adaptive-stage-a-300/top_30.json"
   },
   "candidates_evaluated": 300,
   "cells": [
