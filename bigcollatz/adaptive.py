@@ -17,7 +17,7 @@ FAMILY_BINDINGS = {
     "decimal-suffix": (S5_STRATEGY, "decimal_suffix", {"suffix_digits"}),
     "residue": (S6_STRATEGY, "residue", {"residue_modulus"}),
 }
-THRESHOLDS = (25000, 26000, 27000)
+THRESHOLDS = (25000, 26000, 27000, 27707)
 WINDOWS_DRIVE_QUALIFIED_RE = re.compile(r"^[A-Za-z]:")
 
 @dataclass(frozen=True)
@@ -166,7 +166,7 @@ def _validate_pilot_id(pilot_id: str) -> None:
         raise ValueError("pilot_id must be a single portable path-safe name")
 
 
-def run_adaptive_pilot(output_root: Path, *, pilot_id: str, deterministic_seed: str, cells: list[AdaptiveCell], generators: dict[str, Iterable[CandidateRecord]], evaluator: Callable[..., Any]=evaluate_with_metrics, timer: Callable[[], float]=time.perf_counter) -> dict[str, Any]:
+def run_adaptive_pilot(output_root: Path, *, pilot_id: str, deterministic_seed: str, cells: list[AdaptiveCell], generators: dict[str, Iterable[CandidateRecord]], evaluator: Callable[..., Any]=evaluate_with_metrics, timer: Callable[[], float]=time.perf_counter, rank_limit: int = 30, rank_artifact_name: str = "top_30") -> dict[str, Any]:
     _validate_pilot_id(pilot_id)
     requested=sum(c.candidate_count for c in cells); seen:set[int]=set(); cell_summaries=[]; trajectories=[]; outcomes={"reached_one":0,"repeated_state":0,"interrupted":0}; total=0; start_time=timer(); artifacts={}
     global_path = output_root / "results" / "global_top_10.json"
@@ -212,12 +212,23 @@ def run_adaptive_pilot(output_root: Path, *, pilot_id: str, deterministic_seed: 
             if evaluated != cell.candidate_count: raise ValueError("cell count mismatch")
             aggs=_metric_aggregates(metrics_list)
             p99=_percentile(lengths,.99)
-            cell_summaries.append({**_cell_dict(cell),"requested_candidate_count":cell.candidate_count,"candidates_evaluated":evaluated,"reached_one_count":counts["reached_one"],"repeated_state_count":counts["repeated_state"],"interrupted_count":counts["interrupted"],"mean_trajectory_length":statistics.fmean(lengths),"median_trajectory_length":statistics.median(lengths),"p90_trajectory_length":_percentile(lengths,.9),"p99_trajectory_length":p99,"p99_fallback_trajectory_length":max(lengths),"maximum_trajectory_length":max(lengths),"maximum_integer_reached":str(maxint),"recurrence_metric_aggregates":aggs,"runtime_seconds":runtime,"trajectories_per_second":_trajectories_per_second(evaluated, runtime),"_lengths":lengths})
+            sd = statistics.stdev(lengths) if len(lengths) > 1 else 0.0
+            sem = sd / math.sqrt(len(lengths))
+            cell_summaries.append({**_cell_dict(cell),"requested_candidate_count":cell.candidate_count,"candidates_evaluated":evaluated,"reached_one_count":counts["reached_one"],"repeated_state_count":counts["repeated_state"],"interrupted_count":counts["interrupted"],"mean_trajectory_length":statistics.fmean(lengths),"trajectory_length_standard_deviation":sd,"trajectory_length_standard_error":sem,"trajectory_length_mean_95_ci_normal_approx":{"low":statistics.fmean(lengths)-1.96*sem,"high":statistics.fmean(lengths)+1.96*sem},"median_trajectory_length":statistics.median(lengths),"p90_trajectory_length":_percentile(lengths,.9),"p99_trajectory_length":p99,"p99_fallback_trajectory_length":max(lengths),"maximum_trajectory_length":max(lengths),"maximum_integer_reached":str(maxint),"recurrence_metric_aggregates":aggs,"runtime_seconds":runtime,"trajectories_per_second":_trajectories_per_second(evaluated, runtime),"_lengths":lengths})
         if total != requested or len(seen)!=total: raise ValueError("pilot count mismatch")
         _finalize_completed_cells(cell_summaries, trajectories)
-        artifacts["top_30"] = str(PurePosixPath("results") / pilot_id / "top_30.json")
-        (result_dir / "top_30.json").write_text(json.dumps(rank_trajectories(trajectories, 30), indent=2, sort_keys=True)+"\n")
+        artifact_filename = f"{rank_artifact_name}.json"
+        artifacts[rank_artifact_name] = str(PurePosixPath("results") / pilot_id / artifact_filename)
+        (result_dir / artifact_filename).write_text(json.dumps(rank_trajectories(trajectories, rank_limit), indent=2, sort_keys=True)+"\n")
         summary = write_summary("completed", False)
+        lengths_all = [t["trajectory_length"] for t in trajectories]
+        summary["mean_trajectory_length"] = statistics.fmean(lengths_all)
+        summary["median_trajectory_length"] = statistics.median(lengths_all)
+        summary["p90_trajectory_length"] = _percentile(lengths_all, .9)
+        summary["p99_trajectory_length"] = _percentile(lengths_all, .99)
+        summary["maximum_trajectory_length"] = max(lengths_all)
+        summary["maximum_integer_reached"] = str(max(int(t["maximum_integer"]) for t in trajectories))
+        summary["fixed_threshold_exceedance_counts"] = {f"length_gte_{x}": sum(v >= x for v in lengths_all) for x in THRESHOLDS}
         summary["overall_pilot_top_tail_count"] = sum(s["overall_pilot_top_tail_count"] for s in cell_summaries)
         (result_dir/"summary.json").write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
         if not global_isolated(): raise RuntimeError("adaptive pilot modified global_top_10.json")
