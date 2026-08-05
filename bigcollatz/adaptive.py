@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json, math, statistics, time
+from fractions import Fraction
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable
@@ -98,18 +99,25 @@ def _cell_dict(cell: AdaptiveCell) -> dict[str, Any]:
     return data
 
 
+def _trajectories_per_second(evaluated: int, runtime_seconds: float) -> float | None:
+    if runtime_seconds <= 0:
+        return None
+    return evaluated / runtime_seconds
+
+
 def _metric_aggregates(metrics: list[EvaluationMetrics]) -> dict[str, Any]:
     moduli = {m.residue_modulus for m in metrics}
     if len(moduli) != 1:
         raise ValueError("inconsistent residue_modulus values within cell")
     density_num = sum(m.odd_step_density[0] for m in metrics)
     density_den = sum(m.odd_step_density[1] for m in metrics)
+    density_mean = sum(Fraction(*m.odd_step_density) for m in metrics) / len(metrics)
     descents = [m.first_descent_step for m in metrics if m.first_descent_step is not None]
-    maximum = max(metrics, key=lambda m: (m.maximum_excursion_numerator * math.prod(x.maximum_excursion_denominator for x in metrics)) // m.maximum_excursion_denominator)
+    maximum = max(metrics, key=lambda m: Fraction(m.maximum_excursion_numerator, m.maximum_excursion_denominator))
     return {
         "mean_odd_step_count": statistics.fmean(m.odd_step_count for m in metrics),
         "odd_step_density": {"numerator": density_num, "denominator": density_den},
-        "mean_odd_step_density": density_num / density_den if density_den else None,
+        "mean_odd_step_density": float(density_mean),
         "mean_first_descent_step": statistics.fmean(descents) if descents else None,
         "undefined_first_descent_count": len(metrics) - len(descents),
         "maximum_excursion": {"numerator": maximum.maximum_excursion_numerator, "denominator": maximum.maximum_excursion_denominator},
@@ -177,7 +185,7 @@ def run_adaptive_pilot(output_root: Path, *, pilot_id: str, deterministic_seed: 
                         raise ValueError(f"cycle verification failed: {verification.failure_reason}")
                     artifacts.update(write_discovery_artifacts(output_root, starting_integer=record.candidate, result=result, cycle_members=members, pilot_id=pilot_id, strategy=cell.strategy, deterministic_seed=deterministic_seed, cell_id=cell.cell_id, family=cell.family, generation_parameters=cell.parameters, source_metadata=record.metadata(), validation_mode=cell.validation_mode))
                     runtime=timer()-cell_start
-                    cell_summaries.append({**_cell_dict(cell),"requested_candidate_count":cell.candidate_count,"candidates_evaluated":evaluated,"partial":True,"reached_one_count":counts["reached_one"],"repeated_state_count":counts["repeated_state"],"interrupted_count":counts["interrupted"],"mean_trajectory_length":statistics.fmean(lengths),"median_trajectory_length":statistics.median(lengths),"p90_trajectory_length":_percentile(lengths,.9),"p99_trajectory_length":None,"p99_fallback_trajectory_length":max(lengths),"maximum_trajectory_length":max(lengths),"maximum_integer_reached":str(maxint),"fixed_threshold_exceedance_counts":None,"overall_pilot_top_tail_count":None,"recurrence_metric_aggregates":None,"deterministic_score":None,"runtime_seconds":runtime,"trajectories_per_second":evaluated/runtime})
+                    cell_summaries.append({**_cell_dict(cell),"requested_candidate_count":cell.candidate_count,"candidates_evaluated":evaluated,"partial":True,"reached_one_count":counts["reached_one"],"repeated_state_count":counts["repeated_state"],"interrupted_count":counts["interrupted"],"mean_trajectory_length":statistics.fmean(lengths),"median_trajectory_length":statistics.median(lengths),"p90_trajectory_length":_percentile(lengths,.9),"p99_trajectory_length":None,"p99_fallback_trajectory_length":max(lengths),"maximum_trajectory_length":max(lengths),"maximum_integer_reached":str(maxint),"fixed_threshold_exceedance_counts":None,"overall_pilot_top_tail_count":None,"recurrence_metric_aggregates":None,"deterministic_score":None,"runtime_seconds":runtime,"trajectories_per_second":_trajectories_per_second(evaluated, runtime)})
                     return write_summary("verified_nontrivial_cycle", True)
             try: next(iterator)
             except StopIteration: pass
@@ -186,7 +194,7 @@ def run_adaptive_pilot(output_root: Path, *, pilot_id: str, deterministic_seed: 
             if evaluated != cell.candidate_count: raise ValueError("cell count mismatch")
             aggs=_metric_aggregates(metrics_list)
             p99=_percentile(lengths,.99)
-            cell_summaries.append({**_cell_dict(cell),"requested_candidate_count":cell.candidate_count,"candidates_evaluated":evaluated,"reached_one_count":counts["reached_one"],"repeated_state_count":counts["repeated_state"],"interrupted_count":counts["interrupted"],"mean_trajectory_length":statistics.fmean(lengths),"median_trajectory_length":statistics.median(lengths),"p90_trajectory_length":_percentile(lengths,.9),"p99_trajectory_length":p99,"p99_fallback_trajectory_length":max(lengths),"maximum_trajectory_length":max(lengths),"maximum_integer_reached":str(maxint),"recurrence_metric_aggregates":aggs,"runtime_seconds":runtime,"trajectories_per_second":evaluated/runtime,"_lengths":lengths})
+            cell_summaries.append({**_cell_dict(cell),"requested_candidate_count":cell.candidate_count,"candidates_evaluated":evaluated,"reached_one_count":counts["reached_one"],"repeated_state_count":counts["repeated_state"],"interrupted_count":counts["interrupted"],"mean_trajectory_length":statistics.fmean(lengths),"median_trajectory_length":statistics.median(lengths),"p90_trajectory_length":_percentile(lengths,.9),"p99_trajectory_length":p99,"p99_fallback_trajectory_length":max(lengths),"maximum_trajectory_length":max(lengths),"maximum_integer_reached":str(maxint),"recurrence_metric_aggregates":aggs,"runtime_seconds":runtime,"trajectories_per_second":_trajectories_per_second(evaluated, runtime),"_lengths":lengths})
         if total != requested or len(seen)!=total: raise ValueError("pilot count mismatch")
         _finalize_completed_cells(cell_summaries, trajectories)
         summary = write_summary("completed", False)

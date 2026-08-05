@@ -46,6 +46,15 @@ class AdaptiveTests(unittest.TestCase):
         for records,msg in [([],"short"),([rec(),rec(cand=C+2)],"long")]:
             with tempfile.TemporaryDirectory() as d, self.assertRaisesRegex(ValueError,msg): run_adaptive_pilot(Path(d),pilot_id="p",deterministic_seed="seed",cells=[cell(count=1)],generators={"c":records},evaluator=reached)
 
+
+    def test_zero_runtime_persists_null_throughput(self):
+        times=iter([1,1,1,1])
+        with tempfile.TemporaryDirectory() as d:
+            s=run_adaptive_pilot(Path(d),pilot_id="p",deterministic_seed="seed",cells=[cell(count=1)],generators={"c":[rec()]},evaluator=reached,timer=lambda: next(times))
+        self.assertEqual(s["stopping_reason"], "completed")
+        self.assertEqual(s["cells"][0]["runtime_seconds"], 0)
+        self.assertIsNone(s["cells"][0]["trajectories_per_second"])
+
     def test_duplicates_before_second_evaluation(self):
         ev=Mock(side_effect=reached)
         with tempfile.TemporaryDirectory() as d, self.assertRaisesRegex(ValueError,"duplicate"):
@@ -123,7 +132,7 @@ class AdaptiveSummaryAccuracyTests(unittest.TestCase):
         ag=cs["recurrence_metric_aggregates"]
         self.assertEqual(ag["mean_odd_step_count"], 4)
         self.assertEqual(ag["odd_step_density"], {"numerator":8,"denominator":30})
-        self.assertEqual(ag["mean_odd_step_density"], 8/30)
+        self.assertEqual(ag["mean_odd_step_density"], 0.275)
         self.assertEqual(ag["mean_first_descent_step"], 5)
         self.assertEqual(ag["undefined_first_descent_count"], 1)
         self.assertEqual(ag["maximum_excursion"], {"numerator":9,"denominator":3})
