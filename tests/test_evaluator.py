@@ -148,3 +148,17 @@ class MandatoryCycleDetectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class MetricsAgreementTests(unittest.TestCase):
+    def assert_same_result(self, start, **kwargs):
+        from bigcollatz.evaluator import evaluate_with_metrics
+        plain = evaluate(start, **kwargs)
+        metric, metrics = evaluate_with_metrics(start, **kwargs)
+        self.assertEqual(metric, plain)
+        self.assertGreaterEqual(metrics.odd_step_count, 0)
+
+    def test_metrics_agree_reached_one_interrupted_repeated_and_one(self):
+        self.assert_same_result(3)
+        self.assert_same_result(3, max_steps=2)
+        self.assert_same_result(7, transition=lambda _: 7)
+        self.assert_same_result(1)
