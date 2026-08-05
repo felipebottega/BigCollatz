@@ -65,7 +65,8 @@ def verify_cycle_members(members: list[int], result: EvaluationResult, *, transi
 def verify_nontrivial_cycle(start: int, claimed_result: EvaluationResult, claimed_members: list[Any] | None = None, *, transition: Transition = collatz_step, max_steps: int | None = None) -> CycleVerification:
     try:
         replay = evaluate(start, transition=transition, max_steps=max_steps)
-        fields = ("outcome", "total_steps_executed", "maximum_integer", "repeated_integer", "first_seen_step", "repeated_at_step", "cycle_length")
+        claimed_result.validate()
+        fields = ("outcome", "total_steps_executed", "maximum_integer", "repeated_state", "cycle_entry_step", "cycle_period", "repeated_integer", "first_seen_step", "repeated_at_step", "cycle_length")
         for field in fields:
             if getattr(replay, field) != getattr(claimed_result, field):
                 return CycleVerification(False, [], f"{field} mismatch")
@@ -105,5 +106,5 @@ def write_discovery_artifacts(output_root: Path, *, starting_integer: int, resul
     md_path = output_root / "NONTRIVIAL_CYCLE_FOUND.md"
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-    md_path.write_text("\n".join(["# Nontrivial Cycle Found", "", f"Pilot: `{pilot_id}`", f"Cell: `{cell_id}`", f"Family: `{family}`", f"Strategy: `{strategy}`", f"Repeated integer: `{result.repeated_integer}`", f"First seen step: {result.first_seen_step}", f"Repeated at step: {result.repeated_at_step}", f"Cycle length: {result.cycle_length}", "", "## Ordered cycle members", "", *[f"- `{v}`" for v in payload["cycle_members"]], ""]))
+    md_path.write_text("\n".join(["# Nontrivial Cycle Found", "", f"Starting integer: `{starting_integer}`", f"Repeated integer: `{result.repeated_integer}`", f"First seen step: {result.first_seen_step}", f"Repeated at step: {result.repeated_at_step}", f"Cycle length: {result.cycle_length}", f"Pilot: `{pilot_id}`", f"Strategy: `{strategy}`", f"Deterministic seed: `{deterministic_seed}`", f"Cell: `{cell_id}`", f"Family: `{family}`", f"Generation parameters: `{json.dumps(generation_parameters, sort_keys=True)}`", f"Source metadata: `{json.dumps(source_metadata, sort_keys=True)}`", f"Validation mode: `{validation_mode}`", "Independent replay confirmed: true", "", "## Ordered cycle members", "", *[f"- `{v}`" for v in payload["cycle_members"]], ""]))
     return {"cycle_candidates": "results/cycle_candidates.json", "discovery_json": "results/nontrivial_cycle_discovery.json", "discovery_markdown": "NONTRIVIAL_CYCLE_FOUND.md"}

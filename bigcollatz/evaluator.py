@@ -37,12 +37,12 @@ def _evaluate_engine(start: int, *, transition: Transition = collatz_step, max_s
 
     state, maximum, steps = start, start, 0
     seen: dict[int, int] = {start: 0}
-    residue_hits: set[int] = {start % residue_modulus}
+    residue_hits: set[int] = {start % residue_modulus} if collect_metrics else set()
     repeated_residue_hit_count = 0
     odd_step_count = 0
     first_descent_step: int | None = None
     same_decimal_digit_band_return_count = 0
-    start_digits = len(str(start))
+    start_digits = len(str(start)) if collect_metrics else 0
 
     def metrics() -> EvaluationMetrics | None:
         if not collect_metrics:
@@ -68,20 +68,22 @@ def _evaluate_engine(start: int, *, transition: Transition = collatz_step, max_s
                 stopping_reason="safety_limit", safety_limit_kind="steps",
                 safety_limit_value=max_steps,
             ), metrics()
-        if state & 1:
-            odd_step_count += 1
+        was_odd = bool(state & 1)
         state = transition(state)
         steps += 1
         maximum = max(maximum, state)
-        if first_descent_step is None and state < start:
-            first_descent_step = steps
-        if state != start and len(str(state)) == start_digits:
-            same_decimal_digit_band_return_count += 1
-        residue = state % residue_modulus
-        if residue in residue_hits:
-            repeated_residue_hit_count += 1
-        else:
-            residue_hits.add(residue)
+        if collect_metrics:
+            if was_odd:
+                odd_step_count += 1
+            if first_descent_step is None and state < start:
+                first_descent_step = steps
+            if state != start and len(str(state)) == start_digits:
+                same_decimal_digit_band_return_count += 1
+            residue = state % residue_modulus
+            if residue in residue_hits:
+                repeated_residue_hit_count += 1
+            else:
+                residue_hits.add(residue)
         first_seen = seen.get(state)
         if first_seen is not None:
             return EvaluationResult(
