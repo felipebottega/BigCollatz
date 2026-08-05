@@ -10,3 +10,7 @@
 - **Current working hypothesis:** useful signal may be concentrated in specific cross-family cells, but isolated decimal-suffix and residue preservation were insufficient at 100-candidate pilot scale.
 - **Next intended direction:** build a compact productivity-ranked cell pilot that compares parity-prefix, decimal-suffix, and residue cells with strategy-bound validation before allocating any future full experiment.
 - **Stopping reason for this task:** after implementing and validating two new strategy families and executing pilots P005 and P006, the remaining task window was insufficient to implement a third genuinely distinct strategy, add full dispatch and runner tests for it, execute another 100-1,000 candidate validated pilot, analyze artifacts, and update the repository without risking partial research state.
+
+## Infrastructure note
+
+Correctness-first infrastructure is available for future adaptive cross-family pilots: shared exact evaluation with optional metrics, canonical cycle reconstruction, independent verification, strict adaptive-cell metadata validation, exact generator-count enforcement, global uniqueness, timing, and verified-discovery early stopping. No P007, P008, E005, or new research pilot result is recorded by this infrastructure update.
