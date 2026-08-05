@@ -5,7 +5,7 @@ from __future__ import annotations
 import json, math, re, statistics, time
 from fractions import Fraction
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable
 
 from .cycle import reconstruct_cycle, verify_nontrivial_cycle, write_discovery_artifacts
@@ -136,9 +136,15 @@ def _score(summary: dict[str, Any]) -> float:
     return (summary["mean_trajectory_length"] + summary["p90_trajectory_length"] + p99 + 10 * summary["overall_pilot_top_tail_count"] + m["mean_repeated_residue_hit_count"])
 
 
+def rank_trajectories(trajectories: list[dict[str, Any]], limit: int = 30) -> list[dict[str, Any]]:
+    """Return compact ranked pilot trajectories with deterministic tie-breaking."""
+    ranked = sorted(trajectories, key=lambda t: (-t["trajectory_length"], t["cell_id"], t["candidate_order_within_cell"], t["starting_integer"]))[:limit]
+    return [{"rank": index + 1, **record} for index, record in enumerate(ranked)]
+
+
 def _finalize_completed_cells(cell_summaries: list[dict[str, Any]], trajectories: list[dict[str, Any]]) -> None:
     tail_n = math.ceil(len(trajectories) * 0.10)
-    selected = sorted(trajectories, key=lambda t: (-t["length"], t["cell_id"], t["order"]))[:tail_n]
+    selected = sorted(trajectories, key=lambda t: (-t["trajectory_length"], t["cell_id"], t["candidate_order_within_cell"]))[:tail_n]
     tail_counts: dict[str, int] = {}
     for t in selected: tail_counts[t["cell_id"]] = tail_counts.get(t["cell_id"], 0) + 1
     for s in cell_summaries:
@@ -188,7 +194,7 @@ def run_adaptive_pilot(output_root: Path, *, pilot_id: str, deterministic_seed: 
                 result, metrics=evaluator(record.candidate)
                 evaluated += 1; total += 1; outcomes[result.outcome]+=1; counts[result.outcome]+=1
                 lengths.append(result.total_steps_executed); maxint=max(maxint,result.maximum_integer); metrics_list.append(metrics)
-                trajectories.append({"cell_id": cell.cell_id, "order": evaluated - 1, "length": result.total_steps_executed})
+                trajectories.append({"starting_integer": str(record.candidate), "trajectory_length": result.total_steps_executed, "maximum_integer": str(result.maximum_integer), "cell_id": cell.cell_id, "family": cell.family, "strategy": cell.strategy, "source_parent": str(cell.source_parent), "parent_rank": cell.parent_rank, "generation_parameters": dict(cell.parameters), "validation_mode": cell.validation_mode, "deterministic_seed": deterministic_seed, "candidate_order_within_cell": evaluated - 1})
                 if result.outcome == "repeated_state":
                     members=reconstruct_cycle(record.candidate,result)
                     verification=verify_nontrivial_cycle(record.candidate,result,[str(v) for v in members])
@@ -209,6 +215,8 @@ def run_adaptive_pilot(output_root: Path, *, pilot_id: str, deterministic_seed: 
             cell_summaries.append({**_cell_dict(cell),"requested_candidate_count":cell.candidate_count,"candidates_evaluated":evaluated,"reached_one_count":counts["reached_one"],"repeated_state_count":counts["repeated_state"],"interrupted_count":counts["interrupted"],"mean_trajectory_length":statistics.fmean(lengths),"median_trajectory_length":statistics.median(lengths),"p90_trajectory_length":_percentile(lengths,.9),"p99_trajectory_length":p99,"p99_fallback_trajectory_length":max(lengths),"maximum_trajectory_length":max(lengths),"maximum_integer_reached":str(maxint),"recurrence_metric_aggregates":aggs,"runtime_seconds":runtime,"trajectories_per_second":_trajectories_per_second(evaluated, runtime),"_lengths":lengths})
         if total != requested or len(seen)!=total: raise ValueError("pilot count mismatch")
         _finalize_completed_cells(cell_summaries, trajectories)
+        artifacts["top_30"] = str(PurePosixPath("results") / pilot_id / "top_30.json")
+        (result_dir / "top_30.json").write_text(json.dumps(rank_trajectories(trajectories, 30), indent=2, sort_keys=True)+"\n")
         summary = write_summary("completed", False)
         summary["overall_pilot_top_tail_count"] = sum(s["overall_pilot_top_tail_count"] for s in cell_summaries)
         (result_dir/"summary.json").write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
