@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json, math, statistics, time
+import json, math, re, statistics, time
 from fractions import Fraction
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -18,6 +18,7 @@ FAMILY_BINDINGS = {
     "residue": (S6_STRATEGY, "residue", {"residue_modulus"}),
 }
 THRESHOLDS = (25000, 26000, 27000)
+WINDOWS_DRIVE_QUALIFIED_RE = re.compile(r"^[A-Za-z]:")
 
 @dataclass(frozen=True)
 class AdaptiveCell:
@@ -147,9 +148,20 @@ def _finalize_completed_cells(cell_summaries: list[dict[str, Any]], trajectories
         s["deterministic_score"] = _score(s)
 
 
+def _validate_pilot_id(pilot_id: str) -> None:
+    if (
+        not pilot_id
+        or pilot_id in {".", ".."}
+        or "/" in pilot_id
+        or "\\" in pilot_id
+        or pilot_id.startswith("/")
+        or WINDOWS_DRIVE_QUALIFIED_RE.match(pilot_id)
+    ):
+        raise ValueError("pilot_id must be a single portable path-safe name")
+
+
 def run_adaptive_pilot(output_root: Path, *, pilot_id: str, deterministic_seed: str, cells: list[AdaptiveCell], generators: dict[str, Iterable[CandidateRecord]], evaluator: Callable[..., Any]=evaluate_with_metrics, timer: Callable[[], float]=time.perf_counter) -> dict[str, Any]:
-    if Path(pilot_id).name != pilot_id or Path(pilot_id).is_absolute():
-        raise ValueError("pilot_id must be a path-safe name")
+    _validate_pilot_id(pilot_id)
     requested=sum(c.candidate_count for c in cells); seen:set[int]=set(); cell_summaries=[]; trajectories=[]; outcomes={"reached_one":0,"repeated_state":0,"interrupted":0}; total=0; start_time=timer(); artifacts={}
     global_path = output_root / "results" / "global_top_10.json"
     initial_global = global_path.read_bytes() if global_path.exists() else None

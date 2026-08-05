@@ -55,6 +55,17 @@ class AdaptiveTests(unittest.TestCase):
         self.assertEqual(s["cells"][0]["runtime_seconds"], 0)
         self.assertIsNone(s["cells"][0]["trajectories_per_second"])
 
+
+    def test_pilot_id_must_be_single_portable_path_safe_name(self):
+        invalid_pilot_ids = ["", ".", "..", "a/b", "a\\b", "../p", "..\\p", "/tmp/p", "C:\\temp\\p", "\\\\server\\share"]
+        for pilot_id in invalid_pilot_ids:
+            with self.subTest(pilot_id=pilot_id), tempfile.TemporaryDirectory() as d, self.assertRaisesRegex(ValueError, "pilot_id"):
+                run_adaptive_pilot(Path(d),pilot_id=pilot_id,deterministic_seed="seed",cells=[cell()],generators={"c":[rec()]},evaluator=reached)
+
+        with tempfile.TemporaryDirectory() as d:
+            s=run_adaptive_pilot(Path(d),pilot_id="p007-adaptive-stage-a-300",deterministic_seed="seed",cells=[cell()],generators={"c":[rec()]},evaluator=reached)
+        self.assertEqual(s["pilot_id"], "p007-adaptive-stage-a-300")
+
     def test_duplicates_before_second_evaluation(self):
         ev=Mock(side_effect=reached)
         with tempfile.TemporaryDirectory() as d, self.assertRaisesRegex(ValueError,"duplicate"):
