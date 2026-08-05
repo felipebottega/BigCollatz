@@ -138,7 +138,7 @@ class AdaptiveSummaryAccuracyTests(unittest.TestCase):
         self.assertEqual(cs["candidates_evaluated"], cs["requested_candidate_count"])
         self.assertEqual(s["candidates_evaluated"], s["requested_candidate_count"])
         self.assertEqual(s["distinct_candidate_count"], s["candidates_evaluated"])
-        self.assertEqual(cs["fixed_threshold_exceedance_counts"], {"length_gte_25000":2,"length_gte_26000":1,"length_gte_27000":1})
+        self.assertEqual(cs["fixed_threshold_exceedance_counts"], {"length_gte_25000":2,"length_gte_26000":1,"length_gte_27000":1,"length_gte_27707":0})
         self.assertEqual(cs["overall_pilot_top_tail_count"], 1)
         ag=cs["recurrence_metric_aggregates"]
         self.assertEqual(ag["mean_odd_step_count"], 4)
