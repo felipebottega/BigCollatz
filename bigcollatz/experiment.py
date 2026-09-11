@@ -11,15 +11,50 @@ from typing import Any
 
 from .evaluator import evaluate
 from .generator import (
-    DEFAULT_PREFIX_LENGTH, S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, S5_STRATEGY, S6_STRATEGY, LINEAGE_STRATEGIES, CandidateRecord, balanced_allocation,
-    baseline_candidates, load_global_top_10, load_lineage_weights, parity_prefix_candidate_records,
-    mixed_prefix_candidate_records, decimal_suffix_candidate_records, residue_candidate_records, validate_decimal_suffix, validate_parity_prefix, validate_residue, weighted_allocation, weighted_parity_prefix_candidate_records,
+    DEFAULT_PREFIX_LENGTH,
+    S0_STRATEGY,
+    S1_STRATEGY,
+    S2_STRATEGY,
+    S3_STRATEGY,
+    S4_STRATEGY,
+    S5_STRATEGY,
+    S6_STRATEGY,
+    LINEAGE_STRATEGIES,
+    CandidateRecord,
+    balanced_allocation,
+    baseline_candidates,
+    load_global_top_10,
+    load_lineage_weights,
+    parity_prefix_candidate_records,
+    mixed_prefix_candidate_records,
+    decimal_suffix_candidate_records,
+    residue_candidate_records,
+    validate_decimal_suffix,
+    validate_parity_prefix,
+    validate_residue,
+    weighted_allocation,
+    weighted_parity_prefix_candidate_records,
 )
 
 DEFAULT_CANDIDATE_COUNT = 10_000
 STRATEGY = S0_STRATEGY
-SUPPORTED_STRATEGIES = (S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, S5_STRATEGY, S6_STRATEGY)
-STRATEGY_VALIDATION_MODES = {S1_STRATEGY: "parity_prefix", S2_STRATEGY: "parity_prefix", S3_STRATEGY: "parity_prefix", S4_STRATEGY: "parity_prefix", S5_STRATEGY: "decimal_suffix", S6_STRATEGY: "residue"}
+SUPPORTED_STRATEGIES = (
+    S0_STRATEGY,
+    S1_STRATEGY,
+    S2_STRATEGY,
+    S3_STRATEGY,
+    S4_STRATEGY,
+    S5_STRATEGY,
+    S6_STRATEGY,
+)
+STRATEGY_VALIDATION_MODES = {
+    S1_STRATEGY: "parity_prefix",
+    S2_STRATEGY: "parity_prefix",
+    S3_STRATEGY: "parity_prefix",
+    S4_STRATEGY: "parity_prefix",
+    S5_STRATEGY: "decimal_suffix",
+    S6_STRATEGY: "residue",
+}
 COMPLETED_OUTCOMES = frozenset(("reached_one", "repeated_state"))
 
 
@@ -28,7 +63,11 @@ def _percentile(values: list[int], p: float) -> float:
     position = (len(ordered) - 1) * p
     lower = int(position)
     fraction = position - lower
-    return ordered[lower] if not fraction else ordered[lower] + fraction * (ordered[lower + 1] - ordered[lower])
+    return (
+        ordered[lower]
+        if not fraction
+        else ordered[lower] + fraction * (ordered[lower + 1] - ordered[lower])
+    )
 
 
 def _abbreviate(value: str, width: int = 16) -> str:
@@ -36,10 +75,14 @@ def _abbreviate(value: str, width: int = 16) -> str:
 
 
 def _top_key(entry: dict[str, Any]) -> tuple[int, int]:
-    return entry["total_unaccelerated_trajectory_length"], int(entry["starting_integer"])
+    return entry["total_unaccelerated_trajectory_length"], int(
+        entry["starting_integer"]
+    )
 
 
-def _update_global(output_root: Path, current: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _update_global(
+    output_root: Path, current: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     path = output_root / "results" / "global_top_10.json"
     existing = json.loads(path.read_text()) if path.exists() else []
     deduplicated: dict[str, dict[str, Any]] = {}
@@ -56,7 +99,11 @@ def _update_global(output_root: Path, current: list[dict[str, Any]]) -> list[dic
 
 
 def _cycle_candidate_record(
-    *, result: Any, candidate: int, experiment_id: str, strategy: str,
+    *,
+    result: Any,
+    candidate: int,
+    experiment_id: str,
+    strategy: str,
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     record = {
@@ -82,11 +129,14 @@ def _persist_cycle_candidates(output_root: Path, records: list[dict[str, Any]]) 
     for record in existing + records:
         deduplicated[(record["repeated_integer"], record["cycle_length"])] = record
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(list(deduplicated.values()), indent=2, sort_keys=True) + "\n")
+    path.write_text(
+        json.dumps(list(deduplicated.values()), indent=2, sort_keys=True) + "\n"
+    )
 
 
-
-def _normalize_candidate_record(record: Any, strategy: str, default_prefix_length: int) -> CandidateRecord:
+def _normalize_candidate_record(
+    record: Any, strategy: str, default_prefix_length: int
+) -> CandidateRecord:
     if isinstance(record, CandidateRecord):
         if record.strategy != strategy:
             raise ValueError("candidate strategy does not match selected strategy")
@@ -97,7 +147,13 @@ def _normalize_candidate_record(record: Any, strategy: str, default_prefix_lengt
         candidate, parent = record
         candidate_prefix_length = default_prefix_length
     mode = STRATEGY_VALIDATION_MODES.get(strategy)
-    return CandidateRecord(candidate, strategy, mode or "none", parent=parent, prefix_length=candidate_prefix_length)
+    return CandidateRecord(
+        candidate,
+        strategy,
+        mode or "none",
+        parent=parent,
+        prefix_length=candidate_prefix_length,
+    )
 
 
 def _validate_candidate_record(record: CandidateRecord, strategy: str) -> None:
@@ -105,22 +161,35 @@ def _validate_candidate_record(record: CandidateRecord, strategy: str) -> None:
     if required_mode is None:
         return
     if record.validation_mode != required_mode:
-        raise ValueError(f"candidate validation_mode {record.validation_mode!r} is incompatible with {strategy}")
+        raise ValueError(
+            f"candidate validation_mode {record.validation_mode!r} is incompatible with {strategy}"
+        )
     if required_mode == "parity_prefix":
         if record.parent is None or record.prefix_length is None:
             raise ValueError("parity-prefix candidate metadata is incomplete")
-        if not validate_parity_prefix(record.candidate, record.parent, record.prefix_length):
-            raise ValueError("generated candidate does not reproduce its parent's parity prefix")
+        if not validate_parity_prefix(
+            record.candidate, record.parent, record.prefix_length
+        ):
+            raise ValueError(
+                "generated candidate does not reproduce its parent's parity prefix"
+            )
     elif required_mode == "decimal_suffix":
         if record.parent is None or record.suffix_digits is None:
             raise ValueError("decimal-suffix candidate metadata is incomplete")
-        if not validate_decimal_suffix(record.candidate, record.parent, record.suffix_digits):
-            raise ValueError("generated candidate does not reproduce its parent's decimal suffix")
+        if not validate_decimal_suffix(
+            record.candidate, record.parent, record.suffix_digits
+        ):
+            raise ValueError(
+                "generated candidate does not reproduce its parent's decimal suffix"
+            )
     elif required_mode == "residue":
         if record.residue_modulus is None or record.residue is None:
             raise ValueError("residue candidate metadata is incomplete")
-        if not validate_residue(record.candidate, record.residue_modulus, record.residue):
+        if not validate_residue(
+            record.candidate, record.residue_modulus, record.residue
+        ):
             raise ValueError("generated candidate does not match its residue class")
+
 
 def run_experiment(
     output_root: Path,
@@ -146,103 +215,151 @@ def run_experiment(
         source = output_root / "results" / "global_top_10.json"
         parents = load_global_top_10(source)
         allocation = balanced_allocation(count, parents)
-        parameters.update({
-            "prefix_length": prefix_length,
-            "source_global_top_10_file": "results/global_top_10.json",
-            "number_of_parents_used": len(parents),
-            "deterministic_seed": seed,
-            "allocation_per_parent": [
-                {"parent": str(parent), "candidate_count": allocated}
-                for parent, allocated in zip(parents, allocation)
-            ],
-        })
-        candidate_records = parity_prefix_candidate_records(count, parents, seed, prefix_length)
+        parameters.update(
+            {
+                "prefix_length": prefix_length,
+                "source_global_top_10_file": "results/global_top_10.json",
+                "number_of_parents_used": len(parents),
+                "deterministic_seed": seed,
+                "allocation_per_parent": [
+                    {"parent": str(parent), "candidate_count": allocated}
+                    for parent, allocated in zip(parents, allocation)
+                ],
+            }
+        )
+        candidate_records = parity_prefix_candidate_records(
+            count, parents, seed, prefix_length
+        )
     elif strategy == S4_STRATEGY:
         source = output_root / "results" / "global_top_10.json"
         parents = load_global_top_10(source)
         prefix_lengths = (128, 256, 384)
         pair_count = len(parents) * len(prefix_lengths)
         allocation = balanced_allocation(count, list(range(pair_count)))
-        parameters.update({
-            "source_global_top_10_file": "results/global_top_10.json",
-            "prefix_lengths": list(prefix_lengths),
-            "number_of_parents_used": len(parents),
-            "deterministic_seed": seed,
-            "allocation_per_parent_prefix": [
-                {"parent": str(parent), "prefix_length": prefix, "candidate_count": allocated}
-                for (parent, prefix), allocated in zip(
-                    [(parent, prefix) for parent in parents for prefix in prefix_lengths], allocation
-                )
-            ],
-        })
-        candidate_records = mixed_prefix_candidate_records(count, parents, seed, prefix_lengths)
+        parameters.update(
+            {
+                "source_global_top_10_file": "results/global_top_10.json",
+                "prefix_lengths": list(prefix_lengths),
+                "number_of_parents_used": len(parents),
+                "deterministic_seed": seed,
+                "allocation_per_parent_prefix": [
+                    {
+                        "parent": str(parent),
+                        "prefix_length": prefix,
+                        "candidate_count": allocated,
+                    }
+                    for (parent, prefix), allocated in zip(
+                        [
+                            (parent, prefix)
+                            for parent in parents
+                            for prefix in prefix_lengths
+                        ],
+                        allocation,
+                    )
+                ],
+            }
+        )
+        candidate_records = mixed_prefix_candidate_records(
+            count, parents, seed, prefix_lengths
+        )
     elif strategy == S5_STRATEGY:
         source = output_root / "results" / "global_top_10.json"
         parents = load_global_top_10(source)
         suffix_digits = 64
         allocation = balanced_allocation(count, parents)
-        parameters.update({
-            "source_global_top_10_file": "results/global_top_10.json",
-            "suffix_digits": suffix_digits,
-            "deterministic_seed": seed,
-            "required_validation_mode": STRATEGY_VALIDATION_MODES[strategy],
-            "allocation_per_parent": [
-                {"parent": str(parent), "candidate_count": allocated}
-                for parent, allocated in zip(parents, allocation)
-            ],
-        })
-        candidate_records = decimal_suffix_candidate_records(count, parents, seed, suffix_digits)
+        parameters.update(
+            {
+                "source_global_top_10_file": "results/global_top_10.json",
+                "suffix_digits": suffix_digits,
+                "deterministic_seed": seed,
+                "required_validation_mode": STRATEGY_VALIDATION_MODES[strategy],
+                "allocation_per_parent": [
+                    {"parent": str(parent), "candidate_count": allocated}
+                    for parent, allocated in zip(parents, allocation)
+                ],
+            }
+        )
+        candidate_records = decimal_suffix_candidate_records(
+            count, parents, seed, suffix_digits
+        )
     elif strategy == S6_STRATEGY:
         source = output_root / "results" / "global_top_10.json"
         parents = load_global_top_10(source)
         residue_modulus = 2**128 + 1
         allocation = balanced_allocation(count, parents)
-        parameters.update({
-            "source_global_top_10_file": "results/global_top_10.json",
-            "residue_modulus": residue_modulus,
-            "deterministic_seed": seed,
-            "required_validation_mode": STRATEGY_VALIDATION_MODES[strategy],
-            "allocation_per_parent": [
-                {"parent": str(parent), "residue": parent % residue_modulus, "candidate_count": allocated}
-                for parent, allocated in zip(parents, allocation)
-            ],
-        })
-        candidate_records = residue_candidate_records(count, parents, seed, residue_modulus)
+        parameters.update(
+            {
+                "source_global_top_10_file": "results/global_top_10.json",
+                "residue_modulus": residue_modulus,
+                "deterministic_seed": seed,
+                "required_validation_mode": STRATEGY_VALIDATION_MODES[strategy],
+                "allocation_per_parent": [
+                    {
+                        "parent": str(parent),
+                        "residue": parent % residue_modulus,
+                        "candidate_count": allocated,
+                    }
+                    for parent, allocated in zip(parents, allocation)
+                ],
+            }
+        )
+        candidate_records = residue_candidate_records(
+            count, parents, seed, residue_modulus
+        )
     elif strategy in (S2_STRATEGY, S3_STRATEGY):
         if strategy == S2_STRATEGY:
             source_relative = "results/e002-s1-parity-prefix-256/top_10.json"
-            source = output_root / "results" / "e002-s1-parity-prefix-256" / "top_10.json"
+            source = (
+                output_root / "results" / "e002-s1-parity-prefix-256" / "top_10.json"
+            )
             parent_weights = load_lineage_weights(source, prefix_length)
             generator_domain = S2_STRATEGY
         else:
             source_relative = "results/e003-s2-weighted-lineages-256/top_10.json"
-            source = output_root / "results" / "e003-s2-weighted-lineages-256" / "top_10.json"
+            source = (
+                output_root
+                / "results"
+                / "e003-s2-weighted-lineages-256"
+                / "top_10.json"
+            )
             parent_weights = load_lineage_weights(
-                source, prefix_length, expected_strategy=S2_STRATEGY,
+                source,
+                prefix_length,
+                expected_strategy=S2_STRATEGY,
                 expected_experiment_id="e003-s2-weighted-lineages-256",
                 completed_outcomes=COMPLETED_OUTCOMES,
             )
             generator_domain = S3_STRATEGY
-        allocation = weighted_allocation(count, [weight for _, weight in parent_weights])
-        parameters.update({
-            "source_top_10_file": source_relative,
-            "prefix_length": prefix_length,
-            "deterministic_seed": seed,
-            "number_of_productive_parent_lineages": len(parent_weights),
-            "lineage_weights": [
-                {"parent": str(parent), "weight": weight}
-                for parent, weight in parent_weights
-            ],
-            "allocation_per_parent": [
-                {"parent": str(parent), "weight": weight, "candidate_count": allocated}
-                for (parent, weight), allocated in zip(parent_weights, allocation)
-            ],
-        })
+        allocation = weighted_allocation(
+            count, [weight for _, weight in parent_weights]
+        )
+        parameters.update(
+            {
+                "source_top_10_file": source_relative,
+                "prefix_length": prefix_length,
+                "deterministic_seed": seed,
+                "number_of_productive_parent_lineages": len(parent_weights),
+                "lineage_weights": [
+                    {"parent": str(parent), "weight": weight}
+                    for parent, weight in parent_weights
+                ],
+                "allocation_per_parent": [
+                    {
+                        "parent": str(parent),
+                        "weight": weight,
+                        "candidate_count": allocated,
+                    }
+                    for (parent, weight), allocated in zip(parent_weights, allocation)
+                ],
+            }
+        )
         candidate_records = weighted_parity_prefix_candidate_records(
             count, parent_weights, seed, prefix_length, generator_domain
         )
     else:
-        candidate_records = ((candidate, None) for candidate in baseline_candidates(count, seed=seed))
+        candidate_records = (
+            (candidate, None) for candidate in baseline_candidates(count, seed=seed)
+        )
     lengths: list[int] = []
     outcomes = {"reached_one": 0, "repeated_state": 0, "interrupted": 0}
     top_heap: list[tuple[tuple[int, int], dict[str, Any]]] = []
@@ -261,10 +378,15 @@ def run_experiment(
         runtime_ns = time.perf_counter_ns() - trajectory_started
         outcomes[result.outcome] += 1
         if result.outcome == "repeated_state":
-            cycle_candidates.append(_cycle_candidate_record(
-                result=result, candidate=candidate, experiment_id=experiment_id,
-                strategy=strategy, metadata=metadata,
-            ))
+            cycle_candidates.append(
+                _cycle_candidate_record(
+                    result=result,
+                    candidate=candidate,
+                    experiment_id=experiment_id,
+                    strategy=strategy,
+                    metadata=metadata,
+                )
+            )
         if result.outcome not in COMPLETED_OUTCOMES:
             continue
         lengths.append(result.total_steps_executed)
@@ -297,8 +419,8 @@ def run_experiment(
         "interrupted_count": outcomes["interrupted"],
         "mean_trajectory_length": statistics.fmean(lengths) if lengths else None,
         "median_trajectory_length": statistics.median(lengths) if lengths else None,
-        "p90_trajectory_length": _percentile(lengths, .90) if lengths else None,
-        "p99_trajectory_length": _percentile(lengths, .99) if lengths else None,
+        "p90_trajectory_length": _percentile(lengths, 0.90) if lengths else None,
+        "p99_trajectory_length": _percentile(lengths, 0.99) if lengths else None,
         "maximum_trajectory_length": max(lengths) if lengths else None,
         "total_wall_time_seconds": elapsed_seconds,
         "trajectories_per_second": count / elapsed_seconds,
@@ -312,27 +434,67 @@ def run_experiment(
 
     result_dir = output_root / "results" / experiment_id
     result_dir.mkdir(parents=True, exist_ok=True)
-    (result_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
-    (result_dir / "top_10.json").write_text(json.dumps(top_10, indent=2, sort_keys=True) + "\n")
-    top_header = ("| Start (abbreviated) | Parent (abbreviated) | Length | "
-                  "Maximum (abbreviated) | Outcome | Runtime (s) |") if strategy in LINEAGE_STRATEGIES else (
-                  "| Start (abbreviated) | Length | Maximum (abbreviated) | Outcome | Runtime (s) |")
-    top_separator = ("| --- | --- | ---: | --- | --- | ---: |" if strategy in LINEAGE_STRATEGIES
-                     else "| --- | ---: | --- | --- | ---: |")
+    (result_dir / "summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n"
+    )
+    (result_dir / "top_10.json").write_text(
+        json.dumps(top_10, indent=2, sort_keys=True) + "\n"
+    )
+    top_header = (
+        (
+            "| Start (abbreviated) | Parent (abbreviated) | Length | "
+            "Maximum (abbreviated) | Outcome | Runtime (s) |"
+        )
+        if strategy in LINEAGE_STRATEGIES
+        else (
+            "| Start (abbreviated) | Length | Maximum (abbreviated) | Outcome | Runtime (s) |"
+        )
+    )
+    top_separator = (
+        "| --- | --- | ---: | --- | --- | ---: |"
+        if strategy in LINEAGE_STRATEGIES
+        else "| --- | ---: | --- | --- | ---: |"
+    )
     lines = [
-        f"# {experiment_id}", "", f"Strategy: `{strategy}`; candidates: {count:,} (all 1000 digits).", "",
-        "## Statistics", "", f"- Mean: {summary['mean_trajectory_length']:.3f}" if lengths else "- Mean: null",
-        f"- Median: {summary['median_trajectory_length']}", f"- P90: {summary['p90_trajectory_length']}",
-        f"- P99: {summary['p99_trajectory_length']}", f"- Maximum: {summary['maximum_trajectory_length']}", "",
-        "## Top 10", "", top_header, top_separator,
+        f"# {experiment_id}",
+        "",
+        f"Strategy: `{strategy}`; candidates: {count:,} (all 1000 digits).",
+        "",
+        "## Statistics",
+        "",
+        f"- Mean: {summary['mean_trajectory_length']:.3f}"
+        if lengths
+        else "- Mean: null",
+        f"- Median: {summary['median_trajectory_length']}",
+        f"- P90: {summary['p90_trajectory_length']}",
+        f"- P99: {summary['p99_trajectory_length']}",
+        f"- Maximum: {summary['maximum_trajectory_length']}",
+        "",
+        "## Top 10",
+        "",
+        top_header,
+        top_separator,
     ]
     for entry in top_10:
-        parent_cell = (f"`{_abbreviate(entry['parent_starting_integer'])}` | "
-                       if strategy in LINEAGE_STRATEGIES else "")
-        lines.append(f"| `{_abbreviate(entry['starting_integer'])}` | {parent_cell}{entry['total_unaccelerated_trajectory_length']} | "
-                     f"`{_abbreviate(entry['maximum_integer_reached'])}` | {entry['outcome']} | {entry['runtime_seconds']:.6f} |")
+        parent_cell = (
+            f"`{_abbreviate(entry['parent_starting_integer'])}` | "
+            if strategy in LINEAGE_STRATEGIES
+            else ""
+        )
+        lines.append(
+            f"| `{_abbreviate(entry['starting_integer'])}` | {parent_cell}{entry['total_unaccelerated_trajectory_length']} | "
+            f"`{_abbreviate(entry['maximum_integer_reached'])}` | {entry['outcome']} | {entry['runtime_seconds']:.6f} |"
+        )
     if top_10:
-        lines += ["", "## Best starting integer (complete)", "", "```text", top_10[0]["starting_integer"], "```", ""]
+        lines += [
+            "",
+            "## Best starting integer (complete)",
+            "",
+            "```text",
+            top_10[0]["starting_integer"],
+            "```",
+            "",
+        ]
     (result_dir / "summary.md").write_text("\n".join(lines))
     _persist_cycle_candidates(output_root, cycle_candidates)
     global_top = _update_global(output_root, top_10) if update_global else []

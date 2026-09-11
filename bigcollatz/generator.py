@@ -16,7 +16,9 @@ S3_STRATEGY = "S3-recursive-weighted-lineages"
 S4_STRATEGY = "S4-diversified-mixed-prefix-top10"
 S5_STRATEGY = "S5-decimal-suffix-top10"
 S6_STRATEGY = "S6-residue-class-top10"
-LINEAGE_STRATEGIES = frozenset((S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, S5_STRATEGY, S6_STRATEGY))
+LINEAGE_STRATEGIES = frozenset(
+    (S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, S5_STRATEGY, S6_STRATEGY)
+)
 DEFAULT_PREFIX_LENGTH = 256
 
 
@@ -54,7 +56,7 @@ class CandidateRecord:
 def validate_decimal_suffix(candidate: int, parent: int, suffix_digits: int) -> bool:
     if suffix_digits < 1:
         raise ValueError("suffix_digits must be positive")
-    modulus = 10 ** suffix_digits
+    modulus = 10**suffix_digits
     return candidate % modulus == parent % modulus
 
 
@@ -71,10 +73,17 @@ def _sample_below(width: int, seed: bytes, domain: bytes, attempt: int) -> int |
     material = bytearray()
     block = 0
     while len(material) < byte_count:
-        material.extend(hashlib.sha256(
-            b"bigcollatz\0" + domain + b"\0" + len(seed).to_bytes(8, "big") + seed
-            + attempt.to_bytes(16, "big") + block.to_bytes(4, "big")
-        ).digest())
+        material.extend(
+            hashlib.sha256(
+                b"bigcollatz\0"
+                + domain
+                + b"\0"
+                + len(seed).to_bytes(8, "big")
+                + seed
+                + attempt.to_bytes(16, "big")
+                + block.to_bytes(4, "big")
+            ).digest()
+        )
         block += 1
     sampled = int.from_bytes(material[:byte_count], "big") & ((1 << bit_count) - 1)
     return sampled if sampled < width else None
@@ -101,7 +110,9 @@ def baseline_candidates(count: int, seed: str = "baseline-v1") -> Iterator[int]:
         yield candidate
 
 
-def parity_decisions(value: int, prefix_length: int = DEFAULT_PREFIX_LENGTH) -> tuple[int, ...]:
+def parity_decisions(
+    value: int, prefix_length: int = DEFAULT_PREFIX_LENGTH
+) -> tuple[int, ...]:
     """Compute unaccelerated Collatz parity decisions (zero even, one odd)."""
     if value < 1 or prefix_length < 0:
         raise ValueError("value must be positive and prefix_length nonnegative")
@@ -112,15 +123,23 @@ def parity_decisions(value: int, prefix_length: int = DEFAULT_PREFIX_LENGTH) -> 
     return tuple(decisions)
 
 
-def validate_parity_prefix(candidate: int, parent: int,
-                           prefix_length: int = DEFAULT_PREFIX_LENGTH) -> bool:
+def validate_parity_prefix(
+    candidate: int, parent: int, prefix_length: int = DEFAULT_PREFIX_LENGTH
+) -> bool:
     """Directly validate that candidate and parent share a parity prefix."""
-    return parity_decisions(candidate, prefix_length) == parity_decisions(parent, prefix_length)
+    return parity_decisions(candidate, prefix_length) == parity_decisions(
+        parent, prefix_length
+    )
 
 
 def _validate_canonical_1000_digit(value: object, source_name: str, path: Path) -> str:
-    if (not isinstance(value, str) or len(value) != 1000
-            or value[0] == "0" or not value.isascii() or not value.isdecimal()):
+    if (
+        not isinstance(value, str)
+        or len(value) != 1000
+        or value[0] == "0"
+        or not value.isascii()
+        or not value.isdecimal()
+    ):
         raise ValueError(
             f"invalid {source_name} (expected canonical 1000-digit decimal): {path}"
         )
@@ -148,7 +167,9 @@ def load_global_top_10(path: Path) -> list[int]:
     for record in records:
         if not isinstance(record, dict):
             raise ValueError(f"invalid parent record in global top-10 file: {path}")
-        value = _validate_canonical_1000_digit(record.get("starting_integer"), "parent in global top-10 file", path)
+        value = _validate_canonical_1000_digit(
+            record.get("starting_integer"), "parent in global top-10 file", path
+        )
         if value in seen:
             raise ValueError(f"duplicate parent in global top-10 file: {path}")
         seen.add(value)
@@ -187,24 +208,47 @@ def load_lineage_weights(
     for record in records:
         if not isinstance(record, dict):
             raise ValueError(f"invalid descendant record in source top-10 file: {path}")
-        if expected_strategy is not None and record.get("strategy") != expected_strategy:
-            raise ValueError(f"source top-10 file contains a foreign strategy record: {path}")
-        if expected_experiment_id is not None and record.get("experiment_id") != expected_experiment_id:
-            raise ValueError(f"source top-10 file contains a foreign experiment record: {path}")
-        if completed_outcomes is not None and record.get("outcome") not in completed_outcomes:
-            raise ValueError(f"source top-10 file contains an incomplete or invalid outcome: {path}")
+        if (
+            expected_strategy is not None
+            and record.get("strategy") != expected_strategy
+        ):
+            raise ValueError(
+                f"source top-10 file contains a foreign strategy record: {path}"
+            )
+        if (
+            expected_experiment_id is not None
+            and record.get("experiment_id") != expected_experiment_id
+        ):
+            raise ValueError(
+                f"source top-10 file contains a foreign experiment record: {path}"
+            )
+        if (
+            completed_outcomes is not None
+            and record.get("outcome") not in completed_outcomes
+        ):
+            raise ValueError(
+                f"source top-10 file contains an incomplete or invalid outcome: {path}"
+            )
         if "parent_starting_integer" not in record or "prefix_length" not in record:
             raise ValueError(f"source top-10 file is missing lineage fields: {path}")
         parent = _validate_canonical_1000_digit(
-            record["parent_starting_integer"], "parent lineage in source top-10 file", path
+            record["parent_starting_integer"],
+            "parent lineage in source top-10 file",
+            path,
         )
         record_prefix = record["prefix_length"]
-        if not isinstance(record_prefix, int) or isinstance(record_prefix, bool) or record_prefix < 1:
+        if (
+            not isinstance(record_prefix, int)
+            or isinstance(record_prefix, bool)
+            or record_prefix < 1
+        ):
             raise ValueError(f"invalid prefix length in source top-10 file: {path}")
         if observed_prefix is None:
             observed_prefix = record_prefix
         elif record_prefix != observed_prefix:
-            raise ValueError(f"source top-10 file has inconsistent prefix lengths: {path}")
+            raise ValueError(
+                f"source top-10 file has inconsistent prefix lengths: {path}"
+            )
         if record_prefix != prefix_length:
             raise ValueError(
                 f"source top-10 prefix length {record_prefix} does not match requested {prefix_length}: {path}"
@@ -226,21 +270,34 @@ def balanced_allocation(count: int, parents: list[int]) -> list[int]:
 
 def weighted_allocation(count: int, weights: list[int]) -> list[int]:
     """Proportionally allocate exactly ``count`` by weight using deterministic remainders."""
-    if (not isinstance(count, int) or isinstance(count, bool) or count < 0
-            or not weights or any(not isinstance(w, int) or isinstance(w, bool) or w < 1 for w in weights)):
-        raise ValueError("count must be nonnegative and weights must be positive integers")
+    if (
+        not isinstance(count, int)
+        or isinstance(count, bool)
+        or count < 0
+        or not weights
+        or any(not isinstance(w, int) or isinstance(w, bool) or w < 1 for w in weights)
+    ):
+        raise ValueError(
+            "count must be nonnegative and weights must be positive integers"
+        )
     total_weight = sum(weights)
     floors = [(count * weight) // total_weight for weight in weights]
     remaining = count - sum(floors)
     remainders = [(count * weight) % total_weight for weight in weights]
     allocation = floors[:]
-    for index in sorted(range(len(weights)), key=lambda i: (-remainders[i], i))[:remaining]:
+    for index in sorted(range(len(weights)), key=lambda i: (-remainders[i], i))[
+        :remaining
+    ]:
         allocation[index] += 1
     return allocation
 
 
 def _parity_prefix_candidate_records_with_allocation(
-    parents: list[int], allocation: list[int], seed: str, prefix_length: int, strategy_domain: str,
+    parents: list[int],
+    allocation: list[int],
+    seed: str,
+    prefix_length: int,
+    strategy_domain: str,
 ) -> Iterator[tuple[int, int]]:
     low, high = 10**999, 10**1000 - 1
     modulus = 1 << prefix_length
@@ -268,13 +325,19 @@ def _parity_prefix_candidate_records_with_allocation(
 
 
 def parity_prefix_candidate_records(
-    count: int, parents: list[int], seed: str = "parity-prefix-v1",
+    count: int,
+    parents: list[int],
+    seed: str = "parity-prefix-v1",
     prefix_length: int = DEFAULT_PREFIX_LENGTH,
 ) -> Iterator[tuple[int, int]]:
     """Yield ``(descendant, parent)`` pairs sampled evenly across each congruence class."""
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
         raise ValueError("count must be nonnegative")
-    if not isinstance(prefix_length, int) or isinstance(prefix_length, bool) or prefix_length < 1:
+    if (
+        not isinstance(prefix_length, int)
+        or isinstance(prefix_length, bool)
+        or prefix_length < 1
+    ):
         raise ValueError("prefix_length must be a positive integer")
     allocation = balanced_allocation(count, parents)
     yield from _parity_prefix_candidate_records_with_allocation(
@@ -283,13 +346,20 @@ def parity_prefix_candidate_records(
 
 
 def weighted_parity_prefix_candidate_records(
-    count: int, parent_weights: list[tuple[int, int]], seed: str = "parity-prefix-v1",
-    prefix_length: int = DEFAULT_PREFIX_LENGTH, strategy_domain: str = S2_STRATEGY,
+    count: int,
+    parent_weights: list[tuple[int, int]],
+    seed: str = "parity-prefix-v1",
+    prefix_length: int = DEFAULT_PREFIX_LENGTH,
+    strategy_domain: str = S2_STRATEGY,
 ) -> Iterator[tuple[int, int]]:
     """Yield parity-prefix candidates proportionally allocated by productive lineage weight."""
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
         raise ValueError("count must be nonnegative")
-    if not isinstance(prefix_length, int) or isinstance(prefix_length, bool) or prefix_length < 1:
+    if (
+        not isinstance(prefix_length, int)
+        or isinstance(prefix_length, bool)
+        or prefix_length < 1
+    ):
         raise ValueError("prefix_length must be a positive integer")
     parents = [parent for parent, _ in parent_weights]
     allocation = weighted_allocation(count, [weight for _, weight in parent_weights])
@@ -298,14 +368,23 @@ def weighted_parity_prefix_candidate_records(
     )
 
 
-def parity_prefix_candidates(count: int, parents: list[int], seed: str = "parity-prefix-v1",
-                             prefix_length: int = DEFAULT_PREFIX_LENGTH) -> Iterator[int]:
+def parity_prefix_candidates(
+    count: int,
+    parents: list[int],
+    seed: str = "parity-prefix-v1",
+    prefix_length: int = DEFAULT_PREFIX_LENGTH,
+) -> Iterator[int]:
     """Yield only candidate values for the guided strategy."""
-    for candidate, _ in parity_prefix_candidate_records(count, parents, seed, prefix_length):
+    for candidate, _ in parity_prefix_candidate_records(
+        count, parents, seed, prefix_length
+    ):
         yield candidate
 
+
 def mixed_prefix_candidate_records(
-    count: int, parents: list[int], seed: str = "mixed-prefix-v1",
+    count: int,
+    parents: list[int],
+    seed: str = "mixed-prefix-v1",
     prefix_lengths: tuple[int, ...] = (128, 256, 384),
 ) -> Iterator[tuple[int, int, int]]:
     """Yield candidates spread evenly across parent/prefix combinations."""
@@ -313,16 +392,24 @@ def mixed_prefix_candidate_records(
         raise ValueError("count must be nonnegative")
     if not parents:
         raise ValueError("parents must be nonempty")
-    if (not prefix_lengths or any(not isinstance(length, int) or isinstance(length, bool) or length < 1
-                                  for length in prefix_lengths)):
+    if not prefix_lengths or any(
+        not isinstance(length, int) or isinstance(length, bool) or length < 1
+        for length in prefix_lengths
+    ):
         raise ValueError("prefix_lengths must contain positive integers")
-    pairs = [(parent, prefix_length) for parent in parents for prefix_length in prefix_lengths]
+    pairs = [
+        (parent, prefix_length)
+        for parent in parents
+        for prefix_length in prefix_lengths
+    ]
     allocation = balanced_allocation(count, list(range(len(pairs))))
     low, high = 10**999, 10**1000 - 1
     excluded = set(parents)
     seen: set[int] = set()
     seed_bytes = seed.encode()
-    for pair_index, ((parent, prefix_length), quota) in enumerate(zip(pairs, allocation)):
+    for pair_index, ((parent, prefix_length), quota) in enumerate(
+        zip(pairs, allocation)
+    ):
         modulus = 1 << prefix_length
         residue = parent % modulus
         quotient_low = (low - residue + modulus - 1) // modulus
@@ -344,16 +431,23 @@ def mixed_prefix_candidate_records(
 
 
 def decimal_suffix_candidate_records(
-    count: int, parents: list[int], seed: str = "decimal-suffix-v1", suffix_digits: int = 64,
+    count: int,
+    parents: list[int],
+    seed: str = "decimal-suffix-v1",
+    suffix_digits: int = 64,
 ) -> Iterator[CandidateRecord]:
     """Yield candidates preserving each assigned parent decimal suffix."""
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
         raise ValueError("count must be nonnegative")
     if not parents:
         raise ValueError("parents must be nonempty")
-    if not isinstance(suffix_digits, int) or isinstance(suffix_digits, bool) or suffix_digits < 1:
+    if (
+        not isinstance(suffix_digits, int)
+        or isinstance(suffix_digits, bool)
+        or suffix_digits < 1
+    ):
         raise ValueError("suffix_digits must be a positive integer")
-    modulus = 10 ** suffix_digits
+    modulus = 10**suffix_digits
     allocation = balanced_allocation(count, parents)
     low, high = 10**999, 10**1000 - 1
     excluded = set(parents)
@@ -376,18 +470,31 @@ def decimal_suffix_candidate_records(
                 continue
             seen.add(candidate)
             produced += 1
-            yield CandidateRecord(candidate, S5_STRATEGY, "decimal_suffix", parent=parent, suffix_digits=suffix_digits)
+            yield CandidateRecord(
+                candidate,
+                S5_STRATEGY,
+                "decimal_suffix",
+                parent=parent,
+                suffix_digits=suffix_digits,
+            )
 
 
 def residue_candidate_records(
-    count: int, parents: list[int], seed: str = "residue-v1", residue_modulus: int = 2**128 + 1,
+    count: int,
+    parents: list[int],
+    seed: str = "residue-v1",
+    residue_modulus: int = 2**128 + 1,
 ) -> Iterator[CandidateRecord]:
     """Yield candidates preserving a modular residue class from top parents."""
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
         raise ValueError("count must be nonnegative")
     if not parents:
         raise ValueError("parents must be nonempty")
-    if not isinstance(residue_modulus, int) or isinstance(residue_modulus, bool) or residue_modulus < 2:
+    if (
+        not isinstance(residue_modulus, int)
+        or isinstance(residue_modulus, bool)
+        or residue_modulus < 2
+    ):
         raise ValueError("residue_modulus must be at least 2")
     allocation = balanced_allocation(count, parents)
     low, high = 10**999, 10**1000 - 1
@@ -411,4 +518,11 @@ def residue_candidate_records(
                 continue
             seen.add(candidate)
             produced += 1
-            yield CandidateRecord(candidate, S6_STRATEGY, "residue", parent=parent, residue_modulus=residue_modulus, residue=residue)
+            yield CandidateRecord(
+                candidate,
+                S6_STRATEGY,
+                "residue",
+                parent=parent,
+                residue_modulus=residue_modulus,
+                residue=residue,
+            )
