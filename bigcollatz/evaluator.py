@@ -26,7 +26,14 @@ def collatz_step(n: int) -> int:
     return n // 2 if n % 2 == 0 else 3 * n + 1
 
 
-def _evaluate_engine(start: int, *, transition: Transition = collatz_step, max_steps: int | None = None, collect_metrics: bool = False, residue_modulus: int = 1024) -> tuple[EvaluationResult, EvaluationMetrics | None]:
+def _evaluate_engine(
+    start: int,
+    *,
+    transition: Transition = collatz_step,
+    max_steps: int | None = None,
+    collect_metrics: bool = False,
+    residue_modulus: int = 1024,
+) -> tuple[EvaluationResult, EvaluationMetrics | None]:
     """Single authoritative trajectory loop for exact evaluation and optional metrics."""
     if start <= 0:
         raise ValueError("start must be positive")
@@ -64,8 +71,12 @@ def _evaluate_engine(start: int, *, transition: Transition = collatz_step, max_s
     while True:
         if max_steps is not None and steps >= max_steps:
             return EvaluationResult(
-                start, steps, "interrupted", maximum,
-                stopping_reason="safety_limit", safety_limit_kind="steps",
+                start,
+                steps,
+                "interrupted",
+                maximum,
+                stopping_reason="safety_limit",
+                safety_limit_kind="steps",
                 safety_limit_value=max_steps,
             ), metrics()
         was_odd = bool(state & 1)
@@ -87,30 +98,55 @@ def _evaluate_engine(start: int, *, transition: Transition = collatz_step, max_s
         first_seen = seen.get(state)
         if first_seen is not None:
             return EvaluationResult(
-                start, steps, "repeated_state", maximum,
-                repeated_state=state, cycle_entry_step=first_seen,
-                cycle_period=steps - first_seen, stopping_reason="repeated_state",
-                repeated_integer=str(state), first_seen_step=first_seen,
-                repeated_at_step=steps, cycle_length=steps - first_seen,
+                start,
+                steps,
+                "repeated_state",
+                maximum,
+                repeated_state=state,
+                cycle_entry_step=first_seen,
+                cycle_period=steps - first_seen,
+                stopping_reason="repeated_state",
+                repeated_integer=str(state),
+                first_seen_step=first_seen,
+                repeated_at_step=steps,
+                cycle_length=steps - first_seen,
             ), metrics()
         if state == 1:
             return EvaluationResult(start, steps, "reached_one", maximum), metrics()
         seen[state] = steps
 
 
-def evaluate(start: int, *, transition: Transition = collatz_step, max_steps: int | None = None) -> EvaluationResult:
+def evaluate(
+    start: int, *, transition: Transition = collatz_step, max_steps: int | None = None
+) -> EvaluationResult:
     """Evaluate exactly, checking every generated state for exact repetition."""
-    result, _ = _evaluate_engine(start, transition=transition, max_steps=max_steps, collect_metrics=False)
+    result, _ = _evaluate_engine(
+        start, transition=transition, max_steps=max_steps, collect_metrics=False
+    )
     return result
 
 
-def evaluate_with_metrics(start: int, *, transition: Transition = collatz_step, max_steps: int | None = None, residue_modulus: int = 1024) -> tuple[EvaluationResult, EvaluationMetrics]:
+def evaluate_with_metrics(
+    start: int,
+    *,
+    transition: Transition = collatz_step,
+    max_steps: int | None = None,
+    residue_modulus: int = 1024,
+) -> tuple[EvaluationResult, EvaluationMetrics]:
     """Evaluate with compact metrics while preserving the exact EvaluationResult."""
-    result, metrics = _evaluate_engine(start, transition=transition, max_steps=max_steps, collect_metrics=True, residue_modulus=residue_modulus)
+    result, metrics = _evaluate_engine(
+        start,
+        transition=transition,
+        max_steps=max_steps,
+        collect_metrics=True,
+        residue_modulus=residue_modulus,
+    )
     assert metrics is not None
     return result, metrics
 
 
-def evaluate_hashset(start: int, *, transition: Transition = collatz_step, max_steps: int | None = None) -> EvaluationResult:
+def evaluate_hashset(
+    start: int, *, transition: Transition = collatz_step, max_steps: int | None = None
+) -> EvaluationResult:
     """Backward-compatible alias for the exact mapping evaluator."""
     return evaluate(start, transition=transition, max_steps=max_steps)

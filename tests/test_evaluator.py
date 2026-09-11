@@ -16,17 +16,25 @@ class EvaluatorTests(unittest.TestCase):
         for start, (steps, maximum) in expected.items():
             with self.subTest(start=start):
                 result = evaluate(start)
-                self.assertEqual((result.outcome, result.total_steps_executed, result.maximum_integer),
-                                 ("reached_one", steps, maximum))
+                self.assertEqual(
+                    (
+                        result.outcome,
+                        result.total_steps_executed,
+                        result.maximum_integer,
+                    ),
+                    ("reached_one", steps, maximum),
+                )
 
-    def test_brent_and_hashset_match_bounded_collatz_domain(self):
+    def test_public_evaluators_match_bounded_collatz_domain(self):
         for start in range(1, 5001):
             self.assertEqual(evaluate(start), evaluate_hashset(start))
 
     def test_injected_tail_and_nontrivial_cycle(self):
         edges = {10: 11, 11: 12, 12: 13, 13: 14, 14: 12}
         transition = edges.__getitem__
-        expected = EvaluationResult(10, 5, "repeated_state", 14, 12, 2, 3, "repeated_state")
+        expected = EvaluationResult(
+            10, 5, "repeated_state", 14, 12, 2, 3, "repeated_state"
+        )
         self.assertEqual(evaluate(10, transition=transition), expected)
         self.assertEqual(evaluate_hashset(10, transition=transition), expected)
 
@@ -34,7 +42,9 @@ class EvaluatorTests(unittest.TestCase):
         # CPython deliberately gives -1 and -2 the same hash.
         self.assertEqual(hash(-1), hash(-2))
         edges = {5: -1, -1: -2, -2: -1}
-        expected = EvaluationResult(5, 3, "repeated_state", 5, -1, 1, 2, "repeated_state")
+        expected = EvaluationResult(
+            5, 3, "repeated_state", 5, -1, 1, 2, "repeated_state"
+        )
         self.assertEqual(evaluate_hashset(5, transition=edges.__getitem__), expected)
         self.assertEqual(evaluate(5, transition=edges.__getitem__), expected)
 
@@ -70,7 +80,9 @@ class EvaluatorTests(unittest.TestCase):
             EvaluationResult.from_record(transported)
 
     def test_result_invariants_reject_false_classification(self):
-        invalid = EvaluationResult(3, 2, "interrupted", 10, stopping_reason="reached_one")
+        invalid = EvaluationResult(
+            3, 2, "interrupted", 10, stopping_reason="reached_one"
+        )
         with self.assertRaises(ValueError):
             invalid.validate()
 
@@ -96,8 +108,12 @@ class EvaluatorTests(unittest.TestCase):
     def test_deserialization_rejects_malformed_types_and_decimals(self):
         record = evaluate(3).to_record()
         mutations = {
-            "start": "03", "maximum_integer": "+16", "total_steps_executed": "7",
-            "decimal_digits": True, "maximum_bit_length": 5.0, "reached_one": 1,
+            "start": "03",
+            "maximum_integer": "+16",
+            "total_steps_executed": "7",
+            "decimal_digits": True,
+            "maximum_bit_length": 5.0,
+            "reached_one": 1,
             "schema_version": True,
         }
         for field, value in mutations.items():
@@ -108,11 +124,16 @@ class EvaluatorTests(unittest.TestCase):
                     EvaluationResult.from_record(malformed)
 
     def test_cycle_record_validation(self):
-        result = EvaluationResult(10, 5, "repeated_state", 14, 12, 2, 3, "repeated_state")
+        result = EvaluationResult(
+            10, 5, "repeated_state", 14, 12, 2, 3, "repeated_state"
+        )
         record = result.to_record()
         self.assertEqual(EvaluationResult.from_record(record), result)
-        for field, value in (("cycle_entry_step", -1), ("cycle_period", 0),
-                             ("repeated_state", "012")):
+        for field, value in (
+            ("cycle_entry_step", -1),
+            ("cycle_period", 0),
+            ("repeated_state", "012"),
+        ):
             malformed = dict(record)
             malformed[field] = value
             with self.subTest(field=field), self.assertRaises(ValueError):
@@ -130,13 +151,18 @@ class MandatoryCycleDetectionTests(unittest.TestCase):
     def test_repetition_checked_after_every_generated_step_and_stops_first(self):
         calls = []
         edges = {8: 9, 9: 10, 10: 9}
+
         def transition(n):
             calls.append(n)
             return edges[n]
+
         result = evaluate(8, transition=transition)
         self.assertEqual(calls, [8, 9, 10])
         self.assertEqual(result.repeated_integer, "9")
-        self.assertEqual((result.first_seen_step, result.repeated_at_step, result.cycle_length), (1, 3, 2))
+        self.assertEqual(
+            (result.first_seen_step, result.repeated_at_step, result.cycle_length),
+            (1, 3, 2),
+        )
 
     def test_reached_one_has_no_cycle_metadata(self):
         result = evaluate(2)
@@ -146,12 +172,15 @@ class MandatoryCycleDetectionTests(unittest.TestCase):
         self.assertIsNone(result.repeated_at_step)
         self.assertIsNone(result.cycle_length)
 
+
 if __name__ == "__main__":
     unittest.main()
+
 
 class MetricsAgreementTests(unittest.TestCase):
     def assert_same_result(self, start, **kwargs):
         from bigcollatz.evaluator import evaluate_with_metrics
+
         plain = evaluate(start, **kwargs)
         metric, metrics = evaluate_with_metrics(start, **kwargs)
         self.assertEqual(metric, plain)

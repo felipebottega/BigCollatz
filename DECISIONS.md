@@ -9,8 +9,9 @@ zero. Reaching `1` takes precedence over recognizing the familiar cycle.
 
 A repeated-state result requires equality of full arbitrary-precision integers.
 Operational interruption is a censored computation, not a mathematical outcome.
-Brent detection is used for normal evaluation and a state-set implementation is
-kept only as a test oracle.
+The evaluator maps each visited integer to its first step so it can report the
+cycle entry and period while checking every generated state. Cycle discoveries
+are reconstructed and independently verified before they are reported.
 
 ## Simple experiments
 
