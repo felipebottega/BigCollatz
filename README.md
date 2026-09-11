@@ -3,7 +3,7 @@
 BigCollatz runs exact, reproducible experiments on the unaccelerated Collatz map
 for positive integers with **more than 1,000,000 decimal digits**. Its scientific
 objective is to find a
-nontrivial cycle; trajectory length is retained only as a diagnostic and is not
+nontrivial cycle. Trajectory length is retained only as a diagnostic and is not
 the search objective. One step is
 `n / 2` for even `n` and `3n + 1` for odd `n`.
 
@@ -41,7 +41,7 @@ A run evaluates 4 deterministic guided candidates by default using the S6
 modular-residue strategy, favoring algebraic structure and a small, focused set
 over a broad regular sweep. The uniform S0 strategy remains available as an
 explicit control. Use `--digits N` to select any exact candidate size of at least
-1,000,001 digits; there is no application-level maximum.
+1,000,001 digits. There is no application-level maximum.
 The practical ceiling is available memory and execution time. Use `--count` and
 `python -m bigcollatz run --help` for all options. Guided
 strategies read parent trajectories from committed result files, so they require
@@ -71,7 +71,7 @@ Consequently, rotations of one cycle and repetitions of a shorter cycle are not
 searched again. No previous long trajectory, decimal suffix, fixed digit count,
 or random starting integer participates in candidate selection. The trivial
 `1 -> 4 -> 2 -> 1` cycle is excluded unless `--include-trivial` is supplied.
-Progress is atomically checkpointed under `results/<search-id>/checkpoint.json`;
+Progress is atomically checkpointed under `results/<search-id>/checkpoint.json`,
 rerunning the same command resumes it or returns the completed result. Use
 `--shard-count N --shard-index I` to split the deterministic enumeration among
 independent processes or machines. Each shard needs a distinct search ID.
@@ -90,7 +90,7 @@ The CLI supports the uniform control (`S0`) and the guided strategies `S1`
 through `S6`. Their definitions and data dependencies are documented in
 [`STRATEGIES.md`](STRATEGIES.md). Completed experiments and pilots are recorded
 in [`EXPERIMENTS.md`](EXPERIMENTS.md) and
-[`RESEARCH_LOG.md`](RESEARCH_LOG.md); the current conclusion and next action
+[`RESEARCH_LOG.md`](RESEARCH_LOG.md). The current conclusion and next action
 live in [`RESEARCH_STATE.md`](RESEARCH_STATE.md).
 
 Normal runs write `summary.json`, `summary.md`, and `top_10.json` beneath
@@ -99,5 +99,5 @@ Normal runs write `summary.json`, `summary.md`, and `top_10.json` beneath
 machine-readable files and are abbreviated only in Markdown tables.
 
 The legacy trajectory runner intentionally has no scheduler, persistent cache,
-database, or worker orchestration; algebraic cycle searches add only deterministic
+database, or worker orchestration, algebraic cycle searches add only deterministic
 sharding and local atomic checkpoints.
