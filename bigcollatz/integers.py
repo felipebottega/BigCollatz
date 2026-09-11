@@ -24,3 +24,22 @@ def decimal_string(value: int) -> str:
             + str(chunks[-1])
             + "".join(f"{chunk:09d}" for chunk in reversed(chunks[:-1]))
         )
+
+
+def decimal_integer(value: str) -> int:
+    """Parse a canonical decimal without Python's configurable digit ceiling."""
+    if not isinstance(value, str) or not value or not value.isascii():
+        raise ValueError("value must be a canonical decimal string")
+    sign = -1 if value.startswith("-") else 1
+    unsigned = value[1:] if sign < 0 else value
+    if (
+        not unsigned.isdecimal()
+        or (len(unsigned) > 1 and unsigned.startswith("0"))
+        or value == "-0"
+    ):
+        raise ValueError("value must be a canonical decimal string")
+    result = 0
+    for start in range(0, len(unsigned), 9):
+        chunk = unsigned[start : start + 9]
+        result = result * (10 ** len(chunk)) + int(chunk)
+    return sign * result

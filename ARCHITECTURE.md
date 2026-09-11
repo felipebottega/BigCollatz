@@ -33,6 +33,11 @@ construction of the completed P007 pilot, not a second general-purpose runner.
 The legacy trajectory experiment path intentionally has no schedulers, workers,
 persistent caches, database, schema framework, or storage abstraction.
 
+New trajectory experiments enforce at least 1,001 decimal digits at both the
+generator and runner boundaries. The requested exact digit count has no software
+maximum and is constrained only by resources. The default batch is deliberately
+small (100 candidates) so guided quality can take priority over regular volume.
+
 ## Algebraic cycle search
 
 `bigcollatz/odd_map.py` implements the accelerated odd map and exact replay of an

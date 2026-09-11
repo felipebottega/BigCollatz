@@ -14,6 +14,7 @@ from typing import Any, Callable, Iterable
 
 from .cycle import reconstruct_cycle, verify_nontrivial_cycle, write_discovery_artifacts
 from .evaluator import EvaluationMetrics, evaluate_with_metrics
+from .integers import decimal_string
 from .generator import (
     CandidateRecord,
     S1_STRATEGY,
@@ -352,7 +353,7 @@ def run_adaptive_pilot(
                     {
                         "starting_integer": str(record.candidate),
                         "trajectory_length": result.total_steps_executed,
-                        "maximum_integer": str(result.maximum_integer),
+                        "maximum_integer": decimal_string(result.maximum_integer),
                         "cell_id": cell.cell_id,
                         "family": cell.family,
                         "strategy": cell.strategy,

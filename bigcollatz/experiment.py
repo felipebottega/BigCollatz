@@ -10,8 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from .evaluator import evaluate
+from .integers import decimal_integer, decimal_string
 from .generator import (
+    DEFAULT_DECIMAL_DIGITS,
     DEFAULT_PREFIX_LENGTH,
+    MINIMUM_DECIMAL_DIGITS,
     S0_STRATEGY,
     S1_STRATEGY,
     S2_STRATEGY,
@@ -36,8 +39,8 @@ from .generator import (
     weighted_parity_prefix_candidate_records,
 )
 
-DEFAULT_CANDIDATE_COUNT = 10_000
-STRATEGY = S0_STRATEGY
+DEFAULT_CANDIDATE_COUNT = 100
+STRATEGY = S1_STRATEGY
 SUPPORTED_STRATEGIES = (
     S0_STRATEGY,
     S1_STRATEGY,
@@ -75,7 +78,7 @@ def _abbreviate(value: str, width: int = 16) -> str:
 
 
 def _top_key(entry: dict[str, Any]) -> tuple[int, int]:
-    return entry["total_unaccelerated_trajectory_length"], int(
+    return entry["total_unaccelerated_trajectory_length"], decimal_integer(
         entry["starting_integer"]
     )
 
@@ -107,7 +110,7 @@ def _cycle_candidate_record(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     record = {
-        "starting_integer": str(candidate),
+        "starting_integer": decimal_string(candidate),
         "repeated_integer": result.repeated_integer,
         "first_seen_step": result.first_seen_step,
         "repeated_at_step": result.repeated_at_step,
@@ -197,20 +200,29 @@ def run_experiment(
     experiment_id: str,
     count: int = DEFAULT_CANDIDATE_COUNT,
     seed: str = "baseline-v1",
-    strategy: str = S0_STRATEGY,
+    strategy: str = STRATEGY,
     prefix_length: int = DEFAULT_PREFIX_LENGTH,
+    decimal_digits: int = DEFAULT_DECIMAL_DIGITS,
     validate_candidates: bool = False,
     update_global: bool = True,
 ) -> dict[str, Any]:
-    """Evaluate distinct 1000-digit candidates and retain statistics and two top tens."""
+    """Evaluate a small set of distinct, very large candidate integers."""
     if not experiment_id or Path(experiment_id).name != experiment_id:
         raise ValueError("experiment_id must be a nonempty path-safe name")
     if not isinstance(count, int) or isinstance(count, bool) or count < 1:
         raise ValueError("count must be a positive integer")
     if strategy not in SUPPORTED_STRATEGIES:
         raise ValueError(f"unsupported strategy: {strategy}")
+    if (
+        not isinstance(decimal_digits, int)
+        or isinstance(decimal_digits, bool)
+        or decimal_digits < MINIMUM_DECIMAL_DIGITS
+    ):
+        raise ValueError(
+            f"decimal_digits must be an integer of at least {MINIMUM_DECIMAL_DIGITS}"
+        )
 
-    parameters = {"seed": seed, "decimal_digits": 1000}
+    parameters = {"seed": seed, "decimal_digits": decimal_digits}
     if strategy == S1_STRATEGY:
         source = output_root / "results" / "global_top_10.json"
         parents = load_global_top_10(source)
@@ -222,13 +234,13 @@ def run_experiment(
                 "number_of_parents_used": len(parents),
                 "deterministic_seed": seed,
                 "allocation_per_parent": [
-                    {"parent": str(parent), "candidate_count": allocated}
+                    {"parent": decimal_string(parent), "candidate_count": allocated}
                     for parent, allocated in zip(parents, allocation)
                 ],
             }
         )
         candidate_records = parity_prefix_candidate_records(
-            count, parents, seed, prefix_length
+            count, parents, seed, prefix_length, decimal_digits
         )
     elif strategy == S4_STRATEGY:
         source = output_root / "results" / "global_top_10.json"
@@ -244,7 +256,7 @@ def run_experiment(
                 "deterministic_seed": seed,
                 "allocation_per_parent_prefix": [
                     {
-                        "parent": str(parent),
+                        "parent": decimal_string(parent),
                         "prefix_length": prefix,
                         "candidate_count": allocated,
                     }
@@ -260,7 +272,7 @@ def run_experiment(
             }
         )
         candidate_records = mixed_prefix_candidate_records(
-            count, parents, seed, prefix_lengths
+            count, parents, seed, prefix_lengths, decimal_digits
         )
     elif strategy == S5_STRATEGY:
         source = output_root / "results" / "global_top_10.json"
@@ -274,13 +286,13 @@ def run_experiment(
                 "deterministic_seed": seed,
                 "required_validation_mode": STRATEGY_VALIDATION_MODES[strategy],
                 "allocation_per_parent": [
-                    {"parent": str(parent), "candidate_count": allocated}
+                    {"parent": decimal_string(parent), "candidate_count": allocated}
                     for parent, allocated in zip(parents, allocation)
                 ],
             }
         )
         candidate_records = decimal_suffix_candidate_records(
-            count, parents, seed, suffix_digits
+            count, parents, seed, suffix_digits, decimal_digits
         )
     elif strategy == S6_STRATEGY:
         source = output_root / "results" / "global_top_10.json"
@@ -295,7 +307,7 @@ def run_experiment(
                 "required_validation_mode": STRATEGY_VALIDATION_MODES[strategy],
                 "allocation_per_parent": [
                     {
-                        "parent": str(parent),
+                        "parent": decimal_string(parent),
                         "residue": parent % residue_modulus,
                         "candidate_count": allocated,
                     }
@@ -304,7 +316,7 @@ def run_experiment(
             }
         )
         candidate_records = residue_candidate_records(
-            count, parents, seed, residue_modulus
+            count, parents, seed, residue_modulus, decimal_digits
         )
     elif strategy in (S2_STRATEGY, S3_STRATEGY):
         if strategy == S2_STRATEGY:
@@ -340,12 +352,12 @@ def run_experiment(
                 "deterministic_seed": seed,
                 "number_of_productive_parent_lineages": len(parent_weights),
                 "lineage_weights": [
-                    {"parent": str(parent), "weight": weight}
+                    {"parent": decimal_string(parent), "weight": weight}
                     for parent, weight in parent_weights
                 ],
                 "allocation_per_parent": [
                     {
-                        "parent": str(parent),
+                        "parent": decimal_string(parent),
                         "weight": weight,
                         "candidate_count": allocated,
                     }
@@ -354,11 +366,19 @@ def run_experiment(
             }
         )
         candidate_records = weighted_parity_prefix_candidate_records(
-            count, parent_weights, seed, prefix_length, generator_domain
+            count,
+            parent_weights,
+            seed,
+            prefix_length,
+            generator_domain,
+            decimal_digits,
         )
     else:
         candidate_records = (
-            (candidate, None) for candidate in baseline_candidates(count, seed=seed)
+            (candidate, None)
+            for candidate in baseline_candidates(
+                count, seed=seed, decimal_digits=decimal_digits
+            )
         )
     lengths: list[int] = []
     outcomes = {"reached_one": 0, "repeated_state": 0, "interrupted": 0}
@@ -371,6 +391,10 @@ def run_experiment(
         if validate_candidates:
             _validate_candidate_record(record, strategy)
         candidate = record.candidate
+        if len(decimal_string(candidate)) < MINIMUM_DECIMAL_DIGITS:
+            raise ValueError(
+                f"candidate must have at least {MINIMUM_DECIMAL_DIGITS} decimal digits"
+            )
         metadata = record.metadata() if strategy in LINEAGE_STRATEGIES else {}
         metadata.pop("strategy", None)
         trajectory_started = time.perf_counter_ns()
@@ -391,9 +415,9 @@ def run_experiment(
             continue
         lengths.append(result.total_steps_executed)
         entry = {
-            "starting_integer": str(candidate),
+            "starting_integer": decimal_string(candidate),
             "total_unaccelerated_trajectory_length": result.total_steps_executed,
-            "maximum_integer_reached": str(result.maximum_integer),
+            "maximum_integer_reached": decimal_string(result.maximum_integer),
             "outcome": result.outcome,
             "runtime_seconds": runtime_ns / 1e9,
             "strategy": strategy,
@@ -458,7 +482,7 @@ def run_experiment(
     lines = [
         f"# {experiment_id}",
         "",
-        f"Strategy: `{strategy}`; candidates: {count:,} (all 1000 digits).",
+        f"Strategy: `{strategy}`; candidates: {count:,} (all {decimal_digits:,} digits).",
         "",
         "## Statistics",
         "",

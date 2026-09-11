@@ -3,7 +3,10 @@ import json
 import tempfile
 from pathlib import Path
 
+from bigcollatz.integers import decimal_string
+
 from bigcollatz.generator import (
+    candidate_interval,
     balanced_allocation,
     baseline_candidates,
     load_global_top_10,
@@ -18,10 +21,10 @@ from bigcollatz.generator import (
 
 
 class GeneratorTests(unittest.TestCase):
-    def test_deterministic_distinct_and_exactly_1000_digits(self):
+    def test_deterministic_distinct_and_at_least_1001_digits(self):
         first = list(baseline_candidates(10_000, "fixture"))
         self.assertEqual(len(first), len(set(first)))
-        self.assertTrue(all(len(str(value)) == 1000 for value in first))
+        self.assertTrue(all(len(str(value)) == 1001 for value in first))
         self.assertTrue(all(right - left != 1 for left, right in zip(first, first[1:])))
 
     def test_deterministic_for_same_seed(self):
@@ -40,6 +43,15 @@ class GeneratorTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 list(baseline_candidates(count))  # type: ignore[arg-type]
 
+    def test_candidate_size_is_unbounded_above_fixed_minimum(self):
+        for invalid in (1000, 0, -1, 1001.0, True):
+            with self.assertRaises(ValueError):
+                candidate_interval(invalid)  # type: ignore[arg-type]
+        candidates = list(baseline_candidates(3, "large", decimal_digits=5000))
+        self.assertTrue(
+            all(len(decimal_string(value)) == 5000 for value in candidates)
+        )
+
 
 class ParityPrefixGeneratorTests(unittest.TestCase):
     parents = [27, 97, 871]
@@ -50,7 +62,7 @@ class ParityPrefixGeneratorTests(unittest.TestCase):
         )
         candidates = [candidate for candidate, _ in records]
         self.assertEqual(len(candidates), len(set(candidates)))
-        self.assertTrue(all(len(str(candidate)) == 1000 for candidate in candidates))
+        self.assertTrue(all(len(str(candidate)) == 1001 for candidate in candidates))
         self.assertTrue(all(candidate not in self.parents for candidate in candidates))
         self.assertTrue(
             all(right - left != 1 for left, right in zip(candidates, candidates[1:]))
@@ -101,7 +113,7 @@ class ParityPrefixGeneratorTests(unittest.TestCase):
             ("", "empty"),
             ("not json", "malformed JSON"),
             (json.dumps([{"wrong_field": valid}]), "invalid parent"),
-            (json.dumps([{"starting_integer": "1" + "0" * 998}]), "1000-digit"),
+            (json.dumps([{"starting_integer": "1" + "0" * 998}]), "at least 1000 digits"),
             (json.dumps([{"starting_integer": "0" + "1" * 999}]), "canonical"),
             (
                 json.dumps([{"starting_integer": valid}, {"starting_integer": valid}]),
@@ -211,7 +223,7 @@ class WeightedLineageGeneratorTests(unittest.TestCase):
         )
         candidates = [candidate for candidate, _ in first]
         self.assertEqual(len(candidates), len(set(candidates)))
-        self.assertTrue(all(len(str(candidate)) == 1000 for candidate in candidates))
+        self.assertTrue(all(len(str(candidate)) == 1001 for candidate in candidates))
         self.assertTrue(
             all(
                 candidate not in {parent for parent, _ in parents}
@@ -240,7 +252,7 @@ class WeightedLineageGeneratorTests(unittest.TestCase):
                 json.dumps(
                     [{"parent_starting_integer": "1" + "0" * 998, "prefix_length": 256}]
                 ),
-                "1000-digit",
+                "at least 1000 digits",
             ),
             (
                 json.dumps(
@@ -311,7 +323,7 @@ class WeightedLineageGeneratorTests(unittest.TestCase):
                             ),
                         )
 
-    def test_mixed_prefix_records_are_distinct_1000_digit_and_validate(self):
+    def test_mixed_prefix_records_are_distinct_allowed_size_and_validate(self):
         from bigcollatz.generator import (
             mixed_prefix_candidate_records,
             validate_parity_prefix,
@@ -322,7 +334,7 @@ class WeightedLineageGeneratorTests(unittest.TestCase):
         self.assertEqual(len(records), 12)
         starts = [candidate for candidate, _, _ in records]
         self.assertEqual(len(set(starts)), 12)
-        self.assertTrue(all(len(str(candidate)) == 1000 for candidate in starts))
+        self.assertTrue(all(len(str(candidate)) == 1001 for candidate in starts))
         self.assertEqual(sorted({prefix for _, _, prefix in records}), [8, 12])
         for candidate, parent, prefix in records:
             self.assertIn(parent, parents)
@@ -344,7 +356,7 @@ class ExplicitRecordGeneratorTests(unittest.TestCase):
         parents = [10**999 + 123456789, 2 * 10**999 + 987654321]
         records = list(decimal_suffix_candidate_records(12, parents, "fixture", 9))
         self.assertEqual(len({r.candidate for r in records}), 12)
-        self.assertTrue(all(len(str(r.candidate)) == 1000 for r in records))
+        self.assertTrue(all(len(str(r.candidate)) == 1001 for r in records))
         self.assertTrue(
             all(
                 r.strategy == S5_STRATEGY and r.validation_mode == "decimal_suffix"
@@ -368,7 +380,7 @@ class ExplicitRecordGeneratorTests(unittest.TestCase):
         parents = [10**999 + 123456789, 2 * 10**999 + 987654321]
         records = list(residue_candidate_records(12, parents, "fixture", 257))
         self.assertEqual(len({r.candidate for r in records}), 12)
-        self.assertTrue(all(len(str(r.candidate)) == 1000 for r in records))
+        self.assertTrue(all(len(str(r.candidate)) == 1001 for r in records))
         self.assertTrue(
             all(
                 r.strategy == S6_STRATEGY and r.validation_mode == "residue"

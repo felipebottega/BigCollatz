@@ -1,0 +1,24 @@
+{
+  "algorithm": "sum-constrained-primitive-necklace-cycle-equations",
+  "completed": true,
+  "config": {
+    "checkpoint_every": 10000,
+    "include_trivial": false,
+    "max_odd_period": 12,
+    "max_total_divisions": 24,
+    "min_odd_period": 1,
+    "shard_count": 1,
+    "shard_index": 0
+  },
+  "discoveries": [],
+  "schema_version": 2,
+  "stats": {
+    "canonical_vectors_generated": 963213,
+    "equations_solved": 428216,
+    "integral_candidates": 1,
+    "modular_rejections": 534997,
+    "ordered_compositions_in_region": 9671963,
+    "shard_vectors": 963213
+  },
+  "wall_time_ns": 13605309186
+}

@@ -10,3 +10,8 @@ cross-cell ranking, and JSON summary. Pilots are isolated from
 `global_top_10.json`. The historical `e000-p0-pilot` directory is the sole raw
 JSONL exception; new runs do not create raw records, shards, checkpoints,
 caches, or manifests.
+
+Algebraic cycle searches store `summary.json` and an atomic, resumable
+`checkpoint.json` in their directory. Unlike normal trajectory experiments,
+these searches may be split into deterministic shards, each with its own search
+identifier.
