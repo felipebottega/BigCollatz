@@ -2,9 +2,10 @@
 
 ## S0-uniform-deterministic
 
-The active baseline deterministically chooses an offset in the 1000-digit
-decimal interval from a SHA-256 seed, then walks the interval without
-replacement. Every generated candidate has exactly 1000 digits and candidates
+The S0 control deterministically chooses an offset in a caller-selected
+decimal interval from a SHAKE-256 seed, then samples without replacement. Every
+new candidate has at least 1,000,001 digits, the requested exact size has no
+application-level maximum, and candidates
 within an experiment are distinct. This trajectory-blind generator is a
 reproducible control.
 
@@ -13,8 +14,8 @@ reproducible control.
 A finite parity word determines a residue class modulo a power of two. S1 uses
 the starting integers in `results/global_top_10.json` as parents and preserves
 their first 256 unaccelerated parity decisions by default. It allocates work as
-evenly as possible among those parents, then uses unbiased, SHA-256-based
-sampling of quotient values to lift each residue across the full 1000-digit
+evenly as possible among those parents, then uses unbiased, SHAKE-256-based
+sampling of quotient values to lift each residue across the requested large-number
 interval. The real 10,000-candidate S1 experiment was executed as
 `e002-s1-parity-prefix-256`, with generated artifacts stored under
 `results/e002-s1-parity-prefix-256/`.
@@ -43,7 +44,7 @@ by `parent_starting_integer`. Each parent's weight is the number of E003 top-10
 descendants it produced. Only those productive E003 parent lineages are used.
 
 Candidate generation remains the shared 256-decision parity-prefix generator:
-every candidate has exactly 1000 decimal digits, is distinct, excludes source
+every new candidate has the requested size of at least 1,000,001 decimal digits, is distinct, excludes source
 parents, and preserves its assigned parent's first 256 unaccelerated parity
 decisions. Candidate quotas use the existing proportional largest-remainder
 allocation rule, with deterministic parent-order tie breaks. The runner records
@@ -57,8 +58,8 @@ count, lineage weights, and final per-parent allocation in `summary.json`. The r
 S4 uses the persistent `results/global_top_10.json` parents and preserves several
 prefix lengths in one experiment instead of committing to one fixed parity-prefix
 scale. For each global top-10 parent and each prefix length in 128, 256, and 384,
-it samples deterministic SHA-256 quotient lifts in the matching residue class
-inside the 1000-digit interval. Allocation is balanced across all parent/prefix
+it samples deterministic SHAKE-256 quotient lifts in the matching residue class
+inside the requested interval of at least 1,000,001 digits. Allocation is balanced across all parent/prefix
 cells, every candidate is distinct, source parents are excluded, and optional
 validation directly checks the assigned parity prefix. This tests whether
 lineage diversity plus mixed prefix granularity can preserve the strong E004

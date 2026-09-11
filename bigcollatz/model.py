@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
+from .integers import decimal_integer, decimal_string
+
 Outcome = Literal["reached_one", "repeated_state", "interrupted"]
 SUPPORTED_OUTCOMES = frozenset(("reached_one", "repeated_state", "interrupted"))
 SUPPORTED_STOPPING_REASONS = frozenset(
@@ -35,7 +37,7 @@ def _decimal(value: object, field: str) -> int:
         or value == "-0"
     ):
         raise ValueError(f"{field} must be a canonical decimal string")
-    return int(value)
+    return decimal_integer(value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,15 +179,15 @@ class EvaluationResult:
         data = asdict(self)
         data.update(
             schema_version=1,
-            start=str(self.start),
-            decimal_digits=len(str(self.start)),
-            maximum_integer=str(self.maximum_integer),
+            start=decimal_string(self.start),
+            decimal_digits=len(decimal_string(self.start)),
+            maximum_integer=decimal_string(self.maximum_integer),
             maximum_bit_length=self.maximum_integer.bit_length(),
             reached_one=self.reached_one,
             repeated_state_found=self.repeated_state_found,
             repeated_state=None
             if self.repeated_state is None
-            else str(self.repeated_state),
+            else decimal_string(self.repeated_state),
             censored=self.censored,
         )
         data.update(metadata)
@@ -237,7 +239,7 @@ class EvaluationResult:
         )
         result.validate()
         if not _is_int(record["decimal_digits"]) or record["decimal_digits"] != len(
-            str(result.start)
+            decimal_string(result.start)
         ):
             raise ValueError("incorrect decimal digit count")
         if (

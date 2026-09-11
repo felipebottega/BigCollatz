@@ -5,22 +5,23 @@ from pathlib import Path
 from unittest.mock import patch
 
 from bigcollatz.experiment import DEFAULT_CANDIDATE_COUNT, STRATEGY, run_experiment
-from bigcollatz.generator import S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY
+from bigcollatz.generator import S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY
 from bigcollatz.model import EvaluationResult
 
 
-def fake_candidates(count: int, seed: str):
+def fake_candidates(count: int, seed: str, decimal_digits: int = 1_000_001):
+    assert decimal_digits >= 1_000_001
     del seed
-    yield from (10**999 + ordinal for ordinal in range(count))
+    yield from (10**1000 + ordinal for ordinal in range(count))
 
 
 def fake_evaluate(candidate: int) -> EvaluationResult:
-    length = candidate - 10**999
+    length = candidate - 10**1000
     return EvaluationResult(candidate, length, "reached_one", candidate + length)
 
 
 def mixed_evaluate(candidate: int) -> EvaluationResult:
-    length = candidate - 10**999
+    length = candidate - 10**1000
     if length % 2:
         return EvaluationResult(
             candidate,
@@ -38,10 +39,35 @@ def interrupted_evaluate(candidate: int) -> EvaluationResult:
     )
 
 
-class ExperimentTests(unittest.TestCase):
+class RunnerFixtureMixin:
+    """Keep runner unit fixtures compact; generator tests cover the real huge bound."""
+
+    def setUp(self):
+        self._bounds = patch(
+            "bigcollatz.experiment.candidate_interval",
+            return_value=(10**1000, 10**1001 - 1),
+        )
+        self._bounds.start()
+
+    def tearDown(self):
+        self._bounds.stop()
+
+
+class ExperimentTests(RunnerFixtureMixin, unittest.TestCase):
     def test_default_scope(self):
-        self.assertEqual(DEFAULT_CANDIDATE_COUNT, 10_000)
-        self.assertEqual(STRATEGY, "S0-uniform-deterministic")
+        self.assertEqual(DEFAULT_CANDIDATE_COUNT, 4)
+        self.assertEqual(STRATEGY, "S6-residue-class-top10")
+
+    def test_rejects_candidate_sizes_at_or_below_one_million_digits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for digits in (1_000_000, 1000, 20, 0, -1, True):
+                with self.subTest(digits=digits), self.assertRaises(ValueError):
+                    run_experiment(
+                        Path(directory),
+                        experiment_id="too-small",
+                        count=1,
+                        decimal_digits=digits,  # type: ignore[arg-type]
+                    )
 
     @patch("bigcollatz.experiment.evaluate", side_effect=interrupted_evaluate)
     def test_guided_strategy_records_generation_parameters(self, _evaluate):
@@ -57,14 +83,18 @@ class ExperimentTests(unittest.TestCase):
                     ]
                 )
             )
-            result = run_experiment(
-                root,
-                experiment_id="guided",
-                count=5,
-                seed="fixture",
-                strategy=S1_STRATEGY,
-                validate_candidates=True,
-            )
+            self._bounds.stop()
+            try:
+                result = run_experiment(
+                    root,
+                    experiment_id="guided",
+                    count=5,
+                    seed="fixture",
+                    strategy=S1_STRATEGY,
+                    validate_candidates=True,
+                )
+            finally:
+                self._bounds.start()
             parameters = result["summary"]["strategy"]["parameters"]
             self.assertEqual(parameters["prefix_length"], 256)
             self.assertEqual(
@@ -86,7 +116,7 @@ class ExperimentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             result = run_experiment(
-                root, experiment_id="e001", count=12, seed="fixture"
+                root, experiment_id="e001", count=12, seed="fixture", strategy=S0_STRATEGY
             )
             experiment_files = {path.name for path in (root / "results/e001").iterdir()}
             self.assertEqual(
@@ -122,8 +152,8 @@ class ExperimentTests(unittest.TestCase):
     ):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            parents = [10**999 + 101, 2 * 10**999 + 202]
-            candidates = [10**999 + ordinal for ordinal in range(4)]
+            parents = [10**1000 + 101, 2 * 10**1000 + 202]
+            candidates = [10**1000 + ordinal for ordinal in range(4)]
             candidate_records.return_value = iter(
                 [
                     (candidate, parents[index % 2])
@@ -178,8 +208,8 @@ class ExperimentTests(unittest.TestCase):
     ):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            parents = [10**999 + 101, 2 * 10**999 + 202]
-            candidates = [10**999 + ordinal for ordinal in range(4)]
+            parents = [10**1000 + 101, 2 * 10**1000 + 202]
+            candidates = [10**1000 + ordinal for ordinal in range(4)]
             candidate_records.return_value = iter(
                 [
                     (candidate, parents[index % 2])
@@ -265,12 +295,12 @@ class ExperimentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             parents = [
-                10**999 + 101,
-                2 * 10**999 + 202,
-                3 * 10**999 + 303,
-                4 * 10**999 + 404,
+                10**1000 + 101,
+                2 * 10**1000 + 202,
+                3 * 10**1000 + 303,
+                4 * 10**1000 + 404,
             ]
-            candidates = [10**999 + ordinal for ordinal in range(4)]
+            candidates = [10**1000 + ordinal for ordinal in range(4)]
             candidate_records.return_value = iter(
                 [
                     (candidate, parents[index])
@@ -328,6 +358,7 @@ class ExperimentTests(unittest.TestCase):
                 "fixture",
                 256,
                 S3_STRATEGY,
+                1_000_001,
             )
             self.assertTrue(
                 all(
@@ -353,8 +384,8 @@ class ExperimentTests(unittest.TestCase):
     ):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            parents = [10**999 + 101, 2 * 10**999 + 202]
-            candidates = [10**999 + ordinal for ordinal in range(6)]
+            parents = [10**1000 + 101, 2 * 10**1000 + 202]
+            candidates = [10**1000 + ordinal for ordinal in range(6)]
             prefixes = [128, 256, 384, 128, 256, 384]
             candidate_records.return_value = iter(
                 [
@@ -402,7 +433,7 @@ class ExperimentTests(unittest.TestCase):
                 (root / "results/s4-mixed/summary.md").read_text(),
             )
             candidate_records.assert_called_once_with(
-                6, parents, "fixture", (128, 256, 384)
+                6, parents, "fixture", (128, 256, 384), 1_000_001
             )
 
     @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
@@ -410,8 +441,8 @@ class ExperimentTests(unittest.TestCase):
     def test_global_top_ten_is_merged_and_deduplicated(self, _evaluate, _candidates):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            run_experiment(root, experiment_id="first", count=10)
-            run_experiment(root, experiment_id="second", count=12)
+            run_experiment(root, experiment_id="first", count=10, strategy=S0_STRATEGY)
+            run_experiment(root, experiment_id="second", count=12, strategy=S0_STRATEGY)
             global_top = json.loads((root / "results/global_top_10.json").read_text())
             self.assertEqual(len(global_top), 10)
             self.assertEqual(
@@ -426,7 +457,7 @@ class ExperimentTests(unittest.TestCase):
         self, _evaluate, _candidates
     ):
         with tempfile.TemporaryDirectory() as directory:
-            result = run_experiment(Path(directory), experiment_id="mixed", count=6)
+            result = run_experiment(Path(directory), experiment_id="mixed", count=6, strategy=S0_STRATEGY)
             self.assertEqual(result["summary"]["interrupted_count"], 3)
             self.assertEqual(result["summary"]["mean_trajectory_length"], 2.0)
             self.assertEqual(result["summary"]["maximum_trajectory_length"], 4)
@@ -447,7 +478,7 @@ class ExperimentTests(unittest.TestCase):
     ):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            result = run_experiment(root, experiment_id="interrupted", count=3)
+            result = run_experiment(root, experiment_id="interrupted", count=3, strategy=S0_STRATEGY)
             for name in (
                 "mean_trajectory_length",
                 "median_trajectory_length",
@@ -465,7 +496,7 @@ class ExperimentTests(unittest.TestCase):
 
 
 def repeated_evaluate(candidate: int) -> EvaluationResult:
-    length = candidate - 10**999
+    length = candidate - 10**1000
     if length == 0:
         return EvaluationResult(
             candidate, 5, "repeated_state", candidate + 10, 42, 2, 3, "repeated_state"
@@ -479,7 +510,7 @@ def duplicate_repeated_evaluate(candidate: int) -> EvaluationResult:
     )
 
 
-class CycleCandidatePersistenceTests(unittest.TestCase):
+class CycleCandidatePersistenceTests(RunnerFixtureMixin, unittest.TestCase):
     @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
     @patch("bigcollatz.experiment.evaluate", side_effect=repeated_evaluate)
     def test_repeated_state_count_and_persistence_outside_top_ten(
@@ -487,7 +518,7 @@ class CycleCandidatePersistenceTests(unittest.TestCase):
     ):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            result = run_experiment(root, experiment_id="cycles", count=12)
+            result = run_experiment(root, experiment_id="cycles", count=12, strategy=S0_STRATEGY)
             self.assertEqual(result["summary"]["repeated_state_count"], 1)
             self.assertEqual(result["summary"]["nontrivial_cycle_candidate_count"], 1)
             self.assertEqual(result["summary"]["smallest_detected_cycle_length"], 3)
@@ -503,7 +534,7 @@ class CycleCandidatePersistenceTests(unittest.TestCase):
     def test_duplicate_cycle_records_are_deduplicated(self, _evaluate, _candidates):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            run_experiment(root, experiment_id="dupes", count=3)
+            run_experiment(root, experiment_id="dupes", count=3, strategy=S0_STRATEGY)
             records = json.loads((root / "results/cycle_candidates.json").read_text())
             self.assertEqual(len(records), 1)
 
@@ -512,8 +543,8 @@ class CycleCandidatePersistenceTests(unittest.TestCase):
     def test_s1_cycle_record_preserves_lineage(self, _evaluate, candidate_records):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            parent = 10**999 + 100
-            candidate_records.return_value = iter([(10**999, parent)])
+            parent = 10**1000 + 100
+            candidate_records.return_value = iter([(10**1000, parent)])
             source = root / "results/global_top_10.json"
             source.parent.mkdir(parents=True)
             source.write_text(json.dumps([{"starting_integer": str(parent)}]))
@@ -533,8 +564,8 @@ class CycleCandidatePersistenceTests(unittest.TestCase):
     def test_s2_cycle_record_preserves_lineage(self, _evaluate, candidate_records):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            parent = 10**999 + 100
-            candidate_records.return_value = iter([(10**999, parent)])
+            parent = 10**1000 + 100
+            candidate_records.return_value = iter([(10**1000, parent)])
             source = root / "results/e002-s1-parity-prefix-256/top_10.json"
             source.parent.mkdir(parents=True)
             source.write_text(
@@ -554,8 +585,8 @@ class CycleCandidatePersistenceTests(unittest.TestCase):
     def test_s3_cycle_record_preserves_lineage(self, _evaluate, candidate_records):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            parent = 10**999 + 100
-            candidate_records.return_value = iter([(10**999, parent)])
+            parent = 10**1000 + 100
+            candidate_records.return_value = iter([(10**1000, parent)])
             source = root / "results/e003-s2-weighted-lineages-256/top_10.json"
             source.parent.mkdir(parents=True)
             source.write_text(
@@ -589,7 +620,7 @@ class CycleCandidatePersistenceTests(unittest.TestCase):
             path.parent.mkdir(parents=True)
             path.write_text("[]\n")
             before = path.read_text()
-            run_experiment(root, experiment_id="no-cycles", count=3)
+            run_experiment(root, experiment_id="no-cycles", count=3, strategy=S0_STRATEGY)
             self.assertEqual(path.read_text(), before)
 
 
@@ -605,11 +636,11 @@ class EvaluatorUseTests(unittest.TestCase):
         self.assertIs(experiment.evaluate, evaluator.evaluate)
 
 
-class StrategyBoundValidationTests(unittest.TestCase):
+class StrategyBoundValidationTests(RunnerFixtureMixin, unittest.TestCase):
     def _root_with_global(self):
         directory = tempfile.TemporaryDirectory()
         root = Path(directory.name)
-        parent = 10**999 + 123456789
+        parent = 10**1000 + 123456789
         path = root / "results/global_top_10.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps([{"starting_integer": str(parent)}]))
@@ -632,7 +663,7 @@ class StrategyBoundValidationTests(unittest.TestCase):
             records.return_value = iter(
                 [
                     CandidateRecord(
-                        10**999,
+                        10**1000,
                         S5_STRATEGY,
                         "decimal_suffix",
                         parent=parent,
@@ -671,7 +702,7 @@ class StrategyBoundValidationTests(unittest.TestCase):
             records.return_value = iter(
                 [
                     CandidateRecord(
-                        10**999,
+                        10**1000,
                         S6_STRATEGY,
                         "residue",
                         parent=parent,
@@ -706,7 +737,7 @@ class StrategyBoundValidationTests(unittest.TestCase):
             records.return_value = iter(
                 [
                     CandidateRecord(
-                        10**999,
+                        10**1000,
                         S5_STRATEGY,
                         "residue",
                         parent=parent,
@@ -724,7 +755,7 @@ class StrategyBoundValidationTests(unittest.TestCase):
                     validate_candidates=True,
                 )
             records.return_value = iter(
-                [CandidateRecord(10**999, S5_STRATEGY, "decimal_suffix", parent=parent)]
+                [CandidateRecord(10**1000, S5_STRATEGY, "decimal_suffix", parent=parent)]
             )
             with self.assertRaises(ValueError):
                 run_experiment(
@@ -737,7 +768,7 @@ class StrategyBoundValidationTests(unittest.TestCase):
             records.return_value = iter(
                 [
                     CandidateRecord(
-                        10**999,
+                        10**1000,
                         S5_STRATEGY,
                         "decimal_suffix",
                         parent=parent,
@@ -766,7 +797,7 @@ class StrategyBoundValidationTests(unittest.TestCase):
             records.return_value = iter(
                 [
                     CandidateRecord(
-                        10**999,
+                        10**1000,
                         S6_STRATEGY,
                         "decimal_suffix",
                         parent=parent,
@@ -785,7 +816,7 @@ class StrategyBoundValidationTests(unittest.TestCase):
             records.return_value = iter(
                 [
                     CandidateRecord(
-                        10**999,
+                        10**1000,
                         S6_STRATEGY,
                         "residue",
                         parent=parent,
@@ -804,7 +835,7 @@ class StrategyBoundValidationTests(unittest.TestCase):
             records.return_value = iter(
                 [
                     CandidateRecord(
-                        10**999,
+                        10**1000,
                         S6_STRATEGY,
                         "residue",
                         parent=parent,

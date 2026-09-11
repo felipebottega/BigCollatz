@@ -9,6 +9,8 @@ from collections import OrderedDict
 from collections.abc import Iterator
 from pathlib import Path
 
+from .integers import decimal_integer, decimal_string
+
 S0_STRATEGY = "S0-uniform-deterministic"
 S1_STRATEGY = "S1-parity-prefix-top10"
 S2_STRATEGY = "S2-parity-prefix-weighted-lineages"
@@ -20,6 +22,21 @@ LINEAGE_STRATEGIES = frozenset(
     (S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, S5_STRATEGY, S6_STRATEGY)
 )
 DEFAULT_PREFIX_LENGTH = 256
+MINIMUM_DECIMAL_DIGITS = 1_000_001
+DEFAULT_DECIMAL_DIGITS = MINIMUM_DECIMAL_DIGITS
+
+
+def candidate_interval(decimal_digits: int) -> tuple[int, int]:
+    """Return the inclusive interval for an allowed candidate digit count."""
+    if (
+        not isinstance(decimal_digits, int)
+        or isinstance(decimal_digits, bool)
+        or decimal_digits < MINIMUM_DECIMAL_DIGITS
+    ):
+        raise ValueError(
+            f"decimal_digits must be an integer of at least {MINIMUM_DECIMAL_DIGITS}"
+        )
+    return 10 ** (decimal_digits - 1), 10**decimal_digits - 1
 
 
 @dataclass(frozen=True)
@@ -41,7 +58,7 @@ class CandidateRecord:
             "validation_mode": self.validation_mode,
         }
         if self.parent is not None:
-            data["parent_starting_integer"] = str(self.parent)
+            data["parent_starting_integer"] = decimal_string(self.parent)
         if self.prefix_length is not None:
             data["prefix_length"] = self.prefix_length
         if self.suffix_digits is not None:
@@ -67,33 +84,33 @@ def validate_residue(candidate: int, residue_modulus: int, residue: int) -> bool
 
 
 def _sample_below(width: int, seed: bytes, domain: bytes, attempt: int) -> int | None:
-    """Return an unbiased SHA-256 sample below ``width``, or None on rejection."""
+    """Return an unbiased SHAKE-256 sample below ``width``, or None on rejection."""
     bit_count = width.bit_length()
     byte_count = (bit_count + 7) // 8
-    material = bytearray()
-    block = 0
-    while len(material) < byte_count:
-        material.extend(
-            hashlib.sha256(
-                b"bigcollatz\0"
-                + domain
-                + b"\0"
-                + len(seed).to_bytes(8, "big")
-                + seed
-                + attempt.to_bytes(16, "big")
-                + block.to_bytes(4, "big")
-            ).digest()
-        )
-        block += 1
-    sampled = int.from_bytes(material[:byte_count], "big") & ((1 << bit_count) - 1)
+    material = (
+        b"bigcollatz\0"
+        + domain
+        + b"\0"
+        + len(seed).to_bytes(8, "big")
+        + seed
+        + attempt.to_bytes(16, "big")
+    )
+    sampled = int.from_bytes(
+        hashlib.shake_256(material).digest(byte_count), "big"
+    ) & ((1 << bit_count) - 1)
     return sampled if sampled < width else None
 
 
-def baseline_candidates(count: int, seed: str = "baseline-v1") -> Iterator[int]:
-    """Sample distinct 1000-digit integers with a deterministic SHA-256 stream."""
+def baseline_candidates(
+    count: int,
+    seed: str = "baseline-v1",
+    decimal_digits: int = DEFAULT_DECIMAL_DIGITS,
+) -> Iterator[int]:
+    """Sample distinct allowed-size integers with a deterministic SHAKE-256 stream."""
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
         raise ValueError("count must be nonnegative")
-    low, width = 10**999, 9 * 10**999
+    low, high = candidate_interval(decimal_digits)
+    width = high - low + 1
     seed_bytes = seed.encode()
     seen: set[int] = set()
     attempt = 0
@@ -132,22 +149,22 @@ def validate_parity_prefix(
     )
 
 
-def _validate_canonical_1000_digit(value: object, source_name: str, path: Path) -> str:
+def _validate_canonical_parent(value: object, source_name: str, path: Path) -> str:
     if (
         not isinstance(value, str)
-        or len(value) != 1000
+        or len(value) < 1000
         or value[0] == "0"
         or not value.isascii()
         or not value.isdecimal()
     ):
         raise ValueError(
-            f"invalid {source_name} (expected canonical 1000-digit decimal): {path}"
+            f"invalid {source_name} (expected canonical decimal with at least 1000 digits): {path}"
         )
     return value
 
 
 def load_global_top_10(path: Path) -> list[int]:
-    """Load distinct canonical 1000-digit parents from a persistent top-ten file."""
+    """Load distinct canonical historical or current parents from a top-ten file."""
     if not path.exists():
         raise ValueError(f"global top-10 file is missing: {path}")
     try:
@@ -167,13 +184,13 @@ def load_global_top_10(path: Path) -> list[int]:
     for record in records:
         if not isinstance(record, dict):
             raise ValueError(f"invalid parent record in global top-10 file: {path}")
-        value = _validate_canonical_1000_digit(
+        value = _validate_canonical_parent(
             record.get("starting_integer"), "parent in global top-10 file", path
         )
         if value in seen:
             raise ValueError(f"duplicate parent in global top-10 file: {path}")
         seen.add(value)
-        parents.append(int(value))
+        parents.append(decimal_integer(value))
     return parents
 
 
@@ -231,7 +248,7 @@ def load_lineage_weights(
             )
         if "parent_starting_integer" not in record or "prefix_length" not in record:
             raise ValueError(f"source top-10 file is missing lineage fields: {path}")
-        parent = _validate_canonical_1000_digit(
+        parent = _validate_canonical_parent(
             record["parent_starting_integer"],
             "parent lineage in source top-10 file",
             path,
@@ -257,7 +274,7 @@ def load_lineage_weights(
             first_seen[parent] = len(first_seen)
         weights[parent] = weights.get(parent, 0) + 1
     ordered = sorted(weights.items(), key=lambda item: (-item[1], first_seen[item[0]]))
-    return [(int(parent), weight) for parent, weight in ordered]
+    return [(decimal_integer(parent), weight) for parent, weight in ordered]
 
 
 def balanced_allocation(count: int, parents: list[int]) -> list[int]:
@@ -298,8 +315,9 @@ def _parity_prefix_candidate_records_with_allocation(
     seed: str,
     prefix_length: int,
     strategy_domain: str,
+    decimal_digits: int,
 ) -> Iterator[tuple[int, int]]:
-    low, high = 10**999, 10**1000 - 1
+    low, high = candidate_interval(decimal_digits)
     modulus = 1 << prefix_length
     excluded = set(parents)
     seen: set[int] = set()
@@ -329,6 +347,7 @@ def parity_prefix_candidate_records(
     parents: list[int],
     seed: str = "parity-prefix-v1",
     prefix_length: int = DEFAULT_PREFIX_LENGTH,
+    decimal_digits: int = DEFAULT_DECIMAL_DIGITS,
 ) -> Iterator[tuple[int, int]]:
     """Yield ``(descendant, parent)`` pairs sampled evenly across each congruence class."""
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
@@ -341,7 +360,7 @@ def parity_prefix_candidate_records(
         raise ValueError("prefix_length must be a positive integer")
     allocation = balanced_allocation(count, parents)
     yield from _parity_prefix_candidate_records_with_allocation(
-        parents, allocation, seed, prefix_length, S1_STRATEGY
+        parents, allocation, seed, prefix_length, S1_STRATEGY, decimal_digits
     )
 
 
@@ -351,6 +370,7 @@ def weighted_parity_prefix_candidate_records(
     seed: str = "parity-prefix-v1",
     prefix_length: int = DEFAULT_PREFIX_LENGTH,
     strategy_domain: str = S2_STRATEGY,
+    decimal_digits: int = DEFAULT_DECIMAL_DIGITS,
 ) -> Iterator[tuple[int, int]]:
     """Yield parity-prefix candidates proportionally allocated by productive lineage weight."""
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
@@ -364,7 +384,7 @@ def weighted_parity_prefix_candidate_records(
     parents = [parent for parent, _ in parent_weights]
     allocation = weighted_allocation(count, [weight for _, weight in parent_weights])
     yield from _parity_prefix_candidate_records_with_allocation(
-        parents, allocation, seed, prefix_length, strategy_domain
+        parents, allocation, seed, prefix_length, strategy_domain, decimal_digits
     )
 
 
@@ -373,10 +393,11 @@ def parity_prefix_candidates(
     parents: list[int],
     seed: str = "parity-prefix-v1",
     prefix_length: int = DEFAULT_PREFIX_LENGTH,
+    decimal_digits: int = DEFAULT_DECIMAL_DIGITS,
 ) -> Iterator[int]:
     """Yield only candidate values for the guided strategy."""
     for candidate, _ in parity_prefix_candidate_records(
-        count, parents, seed, prefix_length
+        count, parents, seed, prefix_length, decimal_digits
     ):
         yield candidate
 
@@ -386,6 +407,7 @@ def mixed_prefix_candidate_records(
     parents: list[int],
     seed: str = "mixed-prefix-v1",
     prefix_lengths: tuple[int, ...] = (128, 256, 384),
+    decimal_digits: int = DEFAULT_DECIMAL_DIGITS,
 ) -> Iterator[tuple[int, int, int]]:
     """Yield candidates spread evenly across parent/prefix combinations."""
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
@@ -403,7 +425,7 @@ def mixed_prefix_candidate_records(
         for prefix_length in prefix_lengths
     ]
     allocation = balanced_allocation(count, list(range(len(pairs))))
-    low, high = 10**999, 10**1000 - 1
+    low, high = candidate_interval(decimal_digits)
     excluded = set(parents)
     seen: set[int] = set()
     seed_bytes = seed.encode()
@@ -435,6 +457,7 @@ def decimal_suffix_candidate_records(
     parents: list[int],
     seed: str = "decimal-suffix-v1",
     suffix_digits: int = 64,
+    decimal_digits: int = DEFAULT_DECIMAL_DIGITS,
 ) -> Iterator[CandidateRecord]:
     """Yield candidates preserving each assigned parent decimal suffix."""
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
@@ -449,7 +472,7 @@ def decimal_suffix_candidate_records(
         raise ValueError("suffix_digits must be a positive integer")
     modulus = 10**suffix_digits
     allocation = balanced_allocation(count, parents)
-    low, high = 10**999, 10**1000 - 1
+    low, high = candidate_interval(decimal_digits)
     excluded = set(parents)
     seen: set[int] = set()
     seed_bytes = seed.encode()
@@ -484,6 +507,7 @@ def residue_candidate_records(
     parents: list[int],
     seed: str = "residue-v1",
     residue_modulus: int = 2**128 + 1,
+    decimal_digits: int = DEFAULT_DECIMAL_DIGITS,
 ) -> Iterator[CandidateRecord]:
     """Yield candidates preserving a modular residue class from top parents."""
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
@@ -497,7 +521,7 @@ def residue_candidate_records(
     ):
         raise ValueError("residue_modulus must be at least 2")
     allocation = balanced_allocation(count, parents)
-    low, high = 10**999, 10**1000 - 1
+    low, high = candidate_interval(decimal_digits)
     excluded = set(parents)
     seen: set[int] = set()
     seed_bytes = seed.encode()

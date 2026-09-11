@@ -51,19 +51,13 @@ class P007DesignTests(unittest.TestCase):
             families, {"parity-prefix": 4, "decimal-suffix": 4, "residue": 4}
         )
 
-    def test_generators_are_deterministic_and_counted(self):
+    def test_historical_generators_are_disabled_by_current_size_policy(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "results" / "global_top_10.json"
             global_top(p)
             cells = build_p007_cells(p)
-        one = {
-            k: [r.candidate for r in v] for k, v in build_p007_generators(cells).items()
-        }
-        two = {
-            k: [r.candidate for r in v] for k, v in build_p007_generators(cells).items()
-        }
-        self.assertEqual(one, two)
-        self.assertTrue(all(len(v) == 25 for v in one.values()))
+        with self.assertRaisesRegex(ValueError, "historical 1,000-digit pilot"):
+            build_p007_generators(cells)
 
 
 class P007RankingTests(unittest.TestCase):

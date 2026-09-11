@@ -4,15 +4,20 @@ import argparse
 import json
 from pathlib import Path
 
-from .experiment import DEFAULT_CANDIDATE_COUNT, SUPPORTED_STRATEGIES, run_experiment
-from .generator import DEFAULT_PREFIX_LENGTH, S0_STRATEGY
+from .experiment import (
+    DEFAULT_CANDIDATE_COUNT,
+    STRATEGY,
+    SUPPORTED_STRATEGIES,
+    run_experiment,
+)
+from .generator import DEFAULT_DECIMAL_DIGITS, DEFAULT_PREFIX_LENGTH
 from .cycle_search import CycleSearchConfig, run_cycle_search
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="bigcollatz")
     sub = parser.add_subparsers(dest="command", required=True)
-    run = sub.add_parser("run", help="run a sequential 1000-digit experiment")
+    run = sub.add_parser("run", help="run a focused experiment above 1,000,000 digits")
     run.add_argument("experiment_id", help="identifier used for the result directory")
     run.add_argument(
         "--count",
@@ -21,7 +26,13 @@ def main() -> None:
         help=f"distinct candidates to evaluate (default: {DEFAULT_CANDIDATE_COUNT})",
     )
     run.add_argument("--seed", default="baseline-v1")
-    run.add_argument("--strategy", choices=SUPPORTED_STRATEGIES, default=S0_STRATEGY)
+    run.add_argument(
+        "--digits",
+        type=int,
+        default=DEFAULT_DECIMAL_DIGITS,
+        help=f"decimal digits per candidate, more than one million (default: {DEFAULT_DECIMAL_DIGITS})",
+    )
+    run.add_argument("--strategy", choices=SUPPORTED_STRATEGIES, default=STRATEGY)
     run.add_argument(
         "--prefix-length",
         type=int,
@@ -55,6 +66,7 @@ def main() -> None:
             seed=args.seed,
             strategy=args.strategy,
             prefix_length=args.prefix_length,
+            decimal_digits=args.digits,
             validate_candidates=args.validate_candidates,
         )
         print(json.dumps(result["summary"], indent=2))

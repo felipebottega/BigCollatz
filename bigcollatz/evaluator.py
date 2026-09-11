@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from .integers import decimal_string
 from .model import EvaluationResult
 
 Transition = Callable[[int], int]
@@ -49,7 +50,7 @@ def _evaluate_engine(
     odd_step_count = 0
     first_descent_step: int | None = None
     same_decimal_digit_band_return_count = 0
-    start_digits = len(str(start)) if collect_metrics else 0
+    start_digits = len(decimal_string(start)) if collect_metrics else 0
 
     def metrics() -> EvaluationMetrics | None:
         if not collect_metrics:
@@ -88,7 +89,7 @@ def _evaluate_engine(
                 odd_step_count += 1
             if first_descent_step is None and state < start:
                 first_descent_step = steps
-            if state != start and len(str(state)) == start_digits:
+            if state != start and len(decimal_string(state)) == start_digits:
                 same_decimal_digit_band_return_count += 1
             residue = state % residue_modulus
             if residue in residue_hits:
@@ -106,7 +107,7 @@ def _evaluate_engine(
                 cycle_entry_step=first_seen,
                 cycle_period=steps - first_seen,
                 stopping_reason="repeated_state",
-                repeated_integer=str(state),
+                repeated_integer=decimal_string(state),
                 first_seen_step=first_seen,
                 repeated_at_step=steps,
                 cycle_length=steps - first_seen,

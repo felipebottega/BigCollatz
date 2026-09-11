@@ -1,0 +1,34 @@
+{
+  "completed": true,
+  "config": {
+    "include_trivial": true,
+    "max_odd_period": 3,
+    "max_total_divisions": 6,
+    "min_odd_period": 1,
+    "shard_count": 1,
+    "shard_index": 0
+  },
+  "discoveries": [
+    {
+      "exponents": [
+        2
+      ],
+      "odd_members": [
+        "1"
+      ],
+      "odd_period": 1,
+      "total_divisions": 2,
+      "unaccelerated_period": 3
+    }
+  ],
+  "schema_version": 2,
+  "stats": {
+    "canonical_vectors_generated": 15,
+    "equations_solved": 2,
+    "integral_candidates": 1,
+    "modular_rejections": 13,
+    "ordered_compositions_in_region": 33,
+    "shard_vectors": 15
+  },
+  "vectors_processed": 15
+}
