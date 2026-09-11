@@ -13,10 +13,7 @@ from .generator import (
     S1_STRATEGY,
     S5_STRATEGY,
     S6_STRATEGY,
-    decimal_suffix_candidate_records,
     load_global_top_10,
-    parity_prefix_candidate_records,
-    residue_candidate_records,
 )
 
 PILOT_ID = "p007-adaptive-stage-a-300"
@@ -134,49 +131,14 @@ def build_p007_cells(global_top_path: Path) -> list[AdaptiveCell]:
     ]
 
 
-def _parity_records(
-    pairs: Iterable[tuple[int, int]], prefix_length: int
-) -> Iterable[CandidateRecord]:
-    for candidate, parent in pairs:
-        yield CandidateRecord(
-            candidate,
-            S1_STRATEGY,
-            "parity_prefix",
-            parent=parent,
-            prefix_length=prefix_length,
-        )
-
-
 def build_p007_generators(
     cells: list[AdaptiveCell], seed: str = DETERMINISTIC_SEED
 ) -> dict[str, Iterable[CandidateRecord]]:
-    gens: dict[str, Iterable[CandidateRecord]] = {}
-    for cell in cells:
-        cell_seed = f"{seed}/{cell.cell_id}"
-        if cell.family == "parity-prefix":
-            prefix_length = cell.parameters["prefix_length"]
-            pairs = parity_prefix_candidate_records(
-                cell.candidate_count,
-                [cell.source_parent],
-                seed=cell_seed,
-                prefix_length=prefix_length,
-            )
-            gens[cell.cell_id] = _parity_records(pairs, prefix_length)
-        elif cell.family == "decimal-suffix":
-            gens[cell.cell_id] = decimal_suffix_candidate_records(
-                cell.candidate_count,
-                [cell.source_parent],
-                seed=cell_seed,
-                suffix_digits=cell.parameters["suffix_digits"],
-            )
-        else:
-            gens[cell.cell_id] = residue_candidate_records(
-                cell.candidate_count,
-                [cell.source_parent],
-                seed=cell_seed,
-                residue_modulus=cell.parameters["residue_modulus"],
-            )
-    return gens
+    del cells, seed
+    raise ValueError(
+        "P007 is a historical 1,000-digit pilot and cannot generate new candidates "
+        "under the greater-than-one-million-digit policy"
+    )
 
 
 def run_p007(root: Path) -> dict[str, Any]:

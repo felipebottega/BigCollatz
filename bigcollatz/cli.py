@@ -17,7 +17,7 @@ from .cycle_search import CycleSearchConfig, run_cycle_search
 def main() -> None:
     parser = argparse.ArgumentParser(prog="bigcollatz")
     sub = parser.add_subparsers(dest="command", required=True)
-    run = sub.add_parser("run", help="run a focused experiment above 1,000 digits")
+    run = sub.add_parser("run", help="run a focused experiment above 1,000,000 digits")
     run.add_argument("experiment_id", help="identifier used for the result directory")
     run.add_argument(
         "--count",
@@ -30,7 +30,7 @@ def main() -> None:
         "--digits",
         type=int,
         default=DEFAULT_DECIMAL_DIGITS,
-        help=f"decimal digits per candidate, at least 1001 (default: {DEFAULT_DECIMAL_DIGITS})",
+        help=f"decimal digits per candidate, more than one million (default: {DEFAULT_DECIMAL_DIGITS})",
     )
     run.add_argument("--strategy", choices=SUPPORTED_STRATEGIES, default=STRATEGY)
     run.add_argument(

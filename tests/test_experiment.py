@@ -9,8 +9,8 @@ from bigcollatz.generator import S0_STRATEGY, S1_STRATEGY, S2_STRATEGY, S3_STRAT
 from bigcollatz.model import EvaluationResult
 
 
-def fake_candidates(count: int, seed: str, decimal_digits: int = 1001):
-    assert decimal_digits >= 1001
+def fake_candidates(count: int, seed: str, decimal_digits: int = 1_000_001):
+    assert decimal_digits >= 1_000_001
     del seed
     yield from (10**1000 + ordinal for ordinal in range(count))
 
@@ -39,14 +39,28 @@ def interrupted_evaluate(candidate: int) -> EvaluationResult:
     )
 
 
-class ExperimentTests(unittest.TestCase):
-    def test_default_scope(self):
-        self.assertEqual(DEFAULT_CANDIDATE_COUNT, 100)
-        self.assertEqual(STRATEGY, "S1-parity-prefix-top10")
+class RunnerFixtureMixin:
+    """Keep runner unit fixtures compact; generator tests cover the real huge bound."""
 
-    def test_rejects_candidate_sizes_at_or_below_one_thousand_digits(self):
+    def setUp(self):
+        self._bounds = patch(
+            "bigcollatz.experiment.candidate_interval",
+            return_value=(10**1000, 10**1001 - 1),
+        )
+        self._bounds.start()
+
+    def tearDown(self):
+        self._bounds.stop()
+
+
+class ExperimentTests(RunnerFixtureMixin, unittest.TestCase):
+    def test_default_scope(self):
+        self.assertEqual(DEFAULT_CANDIDATE_COUNT, 4)
+        self.assertEqual(STRATEGY, "S6-residue-class-top10")
+
+    def test_rejects_candidate_sizes_at_or_below_one_million_digits(self):
         with tempfile.TemporaryDirectory() as directory:
-            for digits in (1000, 20, 0, -1, True):
+            for digits in (1_000_000, 1000, 20, 0, -1, True):
                 with self.subTest(digits=digits), self.assertRaises(ValueError):
                     run_experiment(
                         Path(directory),
@@ -69,14 +83,18 @@ class ExperimentTests(unittest.TestCase):
                     ]
                 )
             )
-            result = run_experiment(
-                root,
-                experiment_id="guided",
-                count=5,
-                seed="fixture",
-                strategy=S1_STRATEGY,
-                validate_candidates=True,
-            )
+            self._bounds.stop()
+            try:
+                result = run_experiment(
+                    root,
+                    experiment_id="guided",
+                    count=5,
+                    seed="fixture",
+                    strategy=S1_STRATEGY,
+                    validate_candidates=True,
+                )
+            finally:
+                self._bounds.start()
             parameters = result["summary"]["strategy"]["parameters"]
             self.assertEqual(parameters["prefix_length"], 256)
             self.assertEqual(
@@ -340,7 +358,7 @@ class ExperimentTests(unittest.TestCase):
                 "fixture",
                 256,
                 S3_STRATEGY,
-                1001,
+                1_000_001,
             )
             self.assertTrue(
                 all(
@@ -415,7 +433,7 @@ class ExperimentTests(unittest.TestCase):
                 (root / "results/s4-mixed/summary.md").read_text(),
             )
             candidate_records.assert_called_once_with(
-                6, parents, "fixture", (128, 256, 384), 1001
+                6, parents, "fixture", (128, 256, 384), 1_000_001
             )
 
     @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
@@ -492,7 +510,7 @@ def duplicate_repeated_evaluate(candidate: int) -> EvaluationResult:
     )
 
 
-class CycleCandidatePersistenceTests(unittest.TestCase):
+class CycleCandidatePersistenceTests(RunnerFixtureMixin, unittest.TestCase):
     @patch("bigcollatz.experiment.baseline_candidates", side_effect=fake_candidates)
     @patch("bigcollatz.experiment.evaluate", side_effect=repeated_evaluate)
     def test_repeated_state_count_and_persistence_outside_top_ten(
@@ -618,7 +636,7 @@ class EvaluatorUseTests(unittest.TestCase):
         self.assertIs(experiment.evaluate, evaluator.evaluate)
 
 
-class StrategyBoundValidationTests(unittest.TestCase):
+class StrategyBoundValidationTests(RunnerFixtureMixin, unittest.TestCase):
     def _root_with_global(self):
         directory = tempfile.TemporaryDirectory()
         root = Path(directory.name)

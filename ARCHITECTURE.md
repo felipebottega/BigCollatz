@@ -33,10 +33,12 @@ construction of the completed P007 pilot, not a second general-purpose runner.
 The legacy trajectory experiment path intentionally has no schedulers, workers,
 persistent caches, database, schema framework, or storage abstraction.
 
-New trajectory experiments enforce at least 1,001 decimal digits at both the
+New trajectory experiments enforce at least 1,000,001 decimal digits at both the
 generator and runner boundaries. The requested exact digit count has no software
 maximum and is constrained only by resources. The default batch is deliberately
-small (100 candidates) so guided quality can take priority over regular volume.
+small (4 candidates), with modular-residue guidance by default, so algebraic
+candidate quality can take priority over regular volume. Trajectory-length
+statistics remain diagnostic output for compatibility, not the search target.
 
 ## Algebraic cycle search
 

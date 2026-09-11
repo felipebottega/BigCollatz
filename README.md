@@ -1,8 +1,10 @@
 # BigCollatz
 
 BigCollatz runs exact, reproducible experiments on the unaccelerated Collatz map
-for positive integers with **more than 1,000 decimal digits**. Its scientific objective is to find a
-nontrivial cycle; long trajectories are only a search heuristic. One step is
+for positive integers with **more than 1,000,000 decimal digits**. Its scientific
+objective is to find a
+nontrivial cycle; trajectory length is retained only as a diagnostic and is not
+the search objective. One step is
 `n / 2` for even `n` and `3n + 1` for odd `n`.
 
 The primary cycle-search path is not limited to a decimal interval. It enumerates
@@ -35,11 +37,11 @@ python -m bigcollatz run e002 \
   --seed guided-v1
 ```
 
-A run evaluates 100 deterministic guided candidates by default using the S1
-top-trajectory lineages, favoring a small, focused set over a broad regular
-sweep. The uniform S0 strategy remains available as an explicit control. Use
-`--digits N` to select any exact
-candidate size of at least 1,001 digits; there is no application-level maximum.
+A run evaluates 4 deterministic guided candidates by default using the S6
+modular-residue strategy, favoring algebraic structure and a small, focused set
+over a broad regular sweep. The uniform S0 strategy remains available as an
+explicit control. Use `--digits N` to select any exact candidate size of at least
+1,000,001 digits; there is no application-level maximum.
 The practical ceiling is available memory and execution time. Use `--count` and
 `python -m bigcollatz run --help` for all options. Guided
 strategies read parent trajectories from committed result files, so they require

@@ -26,6 +26,7 @@ from .generator import (
     CandidateRecord,
     balanced_allocation,
     baseline_candidates,
+    candidate_interval,
     load_global_top_10,
     load_lineage_weights,
     parity_prefix_candidate_records,
@@ -39,8 +40,8 @@ from .generator import (
     weighted_parity_prefix_candidate_records,
 )
 
-DEFAULT_CANDIDATE_COUNT = 100
-STRATEGY = S1_STRATEGY
+DEFAULT_CANDIDATE_COUNT = 4
+STRATEGY = S6_STRATEGY
 SUPPORTED_STRATEGIES = (
     S0_STRATEGY,
     S1_STRATEGY,
@@ -222,6 +223,7 @@ def run_experiment(
             f"decimal_digits must be an integer of at least {MINIMUM_DECIMAL_DIGITS}"
         )
 
+    candidate_low, candidate_high = candidate_interval(decimal_digits)
     parameters = {"seed": seed, "decimal_digits": decimal_digits}
     if strategy == S1_STRATEGY:
         source = output_root / "results" / "global_top_10.json"
@@ -391,9 +393,9 @@ def run_experiment(
         if validate_candidates:
             _validate_candidate_record(record, strategy)
         candidate = record.candidate
-        if len(decimal_string(candidate)) < MINIMUM_DECIMAL_DIGITS:
+        if not candidate_low <= candidate <= candidate_high:
             raise ValueError(
-                f"candidate must have at least {MINIMUM_DECIMAL_DIGITS} decimal digits"
+                f"candidate must have exactly {decimal_digits} decimal digits"
             )
         metadata = record.metadata() if strategy in LINEAGE_STRATEGIES else {}
         metadata.pop("strategy", None)

@@ -22,7 +22,7 @@ LINEAGE_STRATEGIES = frozenset(
     (S1_STRATEGY, S2_STRATEGY, S3_STRATEGY, S4_STRATEGY, S5_STRATEGY, S6_STRATEGY)
 )
 DEFAULT_PREFIX_LENGTH = 256
-MINIMUM_DECIMAL_DIGITS = 1001
+MINIMUM_DECIMAL_DIGITS = 1_000_001
 DEFAULT_DECIMAL_DIGITS = MINIMUM_DECIMAL_DIGITS
 
 
@@ -84,25 +84,20 @@ def validate_residue(candidate: int, residue_modulus: int, residue: int) -> bool
 
 
 def _sample_below(width: int, seed: bytes, domain: bytes, attempt: int) -> int | None:
-    """Return an unbiased SHA-256 sample below ``width``, or None on rejection."""
+    """Return an unbiased SHAKE-256 sample below ``width``, or None on rejection."""
     bit_count = width.bit_length()
     byte_count = (bit_count + 7) // 8
-    material = bytearray()
-    block = 0
-    while len(material) < byte_count:
-        material.extend(
-            hashlib.sha256(
-                b"bigcollatz\0"
-                + domain
-                + b"\0"
-                + len(seed).to_bytes(8, "big")
-                + seed
-                + attempt.to_bytes(16, "big")
-                + block.to_bytes(4, "big")
-            ).digest()
-        )
-        block += 1
-    sampled = int.from_bytes(material[:byte_count], "big") & ((1 << bit_count) - 1)
+    material = (
+        b"bigcollatz\0"
+        + domain
+        + b"\0"
+        + len(seed).to_bytes(8, "big")
+        + seed
+        + attempt.to_bytes(16, "big")
+    )
+    sampled = int.from_bytes(
+        hashlib.shake_256(material).digest(byte_count), "big"
+    ) & ((1 << bit_count) - 1)
     return sampled if sampled < width else None
 
 
@@ -111,7 +106,7 @@ def baseline_candidates(
     seed: str = "baseline-v1",
     decimal_digits: int = DEFAULT_DECIMAL_DIGITS,
 ) -> Iterator[int]:
-    """Sample distinct allowed-size integers with a deterministic SHA-256 stream."""
+    """Sample distinct allowed-size integers with a deterministic SHAKE-256 stream."""
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
         raise ValueError("count must be nonnegative")
     low, high = candidate_interval(decimal_digits)
