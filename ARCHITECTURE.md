@@ -30,5 +30,28 @@ recurrence metrics, deterministic cross-cell ranking, and independent cycle
 verification for small adaptive pilots. `bigcollatz/p007.py` is the reproducible
 construction of the completed P007 pilot, not a second general-purpose runner.
 
-The project intentionally has no shards, checkpoints, schedulers, workers,
+The legacy trajectory experiment path intentionally has no schedulers, workers,
 persistent caches, database, schema framework, or storage abstraction.
+
+## Algebraic cycle search
+
+`bigcollatz/odd_map.py` implements the accelerated odd map and exact replay of an
+exponent word. `bigcollatz/cycle_equation.py` composes that word into an affine
+closure equation, solves it with arbitrary-precision integer division, and
+canonicalizes cyclic words with linear-time rotation and primitivity algorithms.
+
+`bigcollatz/cycle_search.py` uses a sum-constrained FKM necklace recursion within
+explicit odd-period and total-division bounds. It generates primitive
+lexicographically least cyclic words directly instead of enumerating every
+ordered composition and filtering equivalent rotations afterward. The necessary
+positivity condition `2**S > 3**k` removes impossible totals before enumeration.
+Canonical-vector ordinals are deterministically assigned to shards; each shard
+applies exact small-prime divisibility filters before constructing the full
+equation. Atomic JSON checkpoints contain
+the configuration signature, exact cursor, counters, and discoveries, allowing
+safe resumption without silently changing the searched region.
+
+This path has no decimal-digit bound and does not depend on the 1,000-digit
+trajectory generators. Decimal conversion happens only when a verified integral
+candidate is persisted. The older experiment runner remains available as a
+trajectory research tool and is not part of the algebraic enumeration.

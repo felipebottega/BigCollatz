@@ -9,6 +9,7 @@
 - **Strongest observed signals:** recursive 256-prefix lineage weighting remains the best full-scale evidence and produced the 27,707 global maximum; fixed shorter or longer prefixes around the global top 10 have not improved the tail; broad mixed-prefix diversity improved over pure 128-prefix but not enough for full-scale promotion; decimal-suffix and non-decimal residue pilots were competitive with each other but below the E004 record.
 - **Current working hypothesis:** useful signal is concentrated in specific cross-family cells, with P007 favoring sustained parity-prefix and decimal-suffix tails more than residue at 25 samples per cell.
 - **Next intended direction:** run a small second-stage adaptive pilot that promotes `p007-ds-r02-d64`, `p007-pp-r02-l256`, and `p007-pp-r02-l128`, while retaining at least one residue sentinel; do not begin a full 10,000-candidate experiment yet.
+- **Revised cycle-first direction:** the project now includes a digit-unbounded algebraic search over accelerated-map exponent vectors. Future cycle work should expand odd-period/total-division bounds through deterministic shards rather than promote trajectory-length cells; the P007 recommendation is retained as historical context only.
 
 ## P007 adaptive stage-A pilot
 
@@ -26,3 +27,10 @@
 ## Infrastructure note
 
 Correctness-first infrastructure is available for future adaptive cross-family pilots: shared exact evaluation with optional metrics, canonical cycle reconstruction, independent verification, strict adaptive-cell metadata validation, exact generator-count enforcement, global uniqueness, timing, and verified-discovery early stopping. P007 used this infrastructure without modifying `results/global_top_10.json`; no P008, E005, or new full experiment has been started.
+
+Algebraic cycle-search infrastructure is also available: accelerated odd steps,
+exact closure equations, direct sum-constrained generation of primitive necklace
+representatives, positivity and modular pruning, deterministic sharding, and
+atomic resumable checkpoints. This candidate process does not reuse long-trajectory
+parents or random fixed-digit starts. Bounds describe the combinatorial search
+region and impose no limit on candidate integer digits.
