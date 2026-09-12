@@ -13,11 +13,14 @@ closure equation exactly, removes rotational and repeated-word duplicates, and
 replays every integral solution. Search bounds apply to odd period and total
 divisions by two, not to the number of digits in a candidate.
 
-Every trajectory records each visited integer and stops at the first exact
-repetition or at `1`. Verified cycle candidates are persisted separately from
-the trajectory ranking, so a discovery cannot be discarded for missing the top
-ten. Normal experiments retain aggregate statistics and only their ten best
-completed trajectories rather than raw trajectories or every result record.
+Every trajectory retains no history of visited integers: it advances the current
+integer while keeping the initial integer and a step counter. It stops when it
+returns exactly to its initial integer or reaches `1`, keeping memory use
+independent of trajectory length. Verified cycle candidates are persisted
+separately from the trajectory ranking, so a discovery cannot be discarded for
+missing the top ten. Normal experiments retain aggregate statistics and only
+their ten best completed trajectories rather than raw trajectories or every
+result record.
 
 ## Setup and tests
 

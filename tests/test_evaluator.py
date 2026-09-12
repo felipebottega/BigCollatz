@@ -29,21 +29,27 @@ class EvaluatorTests(unittest.TestCase):
         for start in range(1, 5001):
             self.assertEqual(evaluate(start), evaluate_hashset(start))
 
-    def test_injected_tail_and_nontrivial_cycle(self):
+    def test_downstream_cycle_is_not_a_cycle_for_the_starting_integer(self):
         edges = {10: 11, 11: 12, 12: 13, 13: 14, 14: 12}
         transition = edges.__getitem__
         expected = EvaluationResult(
-            10, 5, "repeated_state", 14, 12, 2, 3, "repeated_state"
+            10,
+            8,
+            "interrupted",
+            14,
+            stopping_reason="safety_limit",
+            safety_limit_kind="steps",
+            safety_limit_value=8,
         )
-        self.assertEqual(evaluate(10, transition=transition), expected)
-        self.assertEqual(evaluate_hashset(10, transition=transition), expected)
+        self.assertEqual(evaluate(10, transition=transition, max_steps=8), expected)
+        self.assertEqual(
+            evaluate_hashset(10, transition=transition, max_steps=8), expected
+        )
 
-    def test_hash_collision_does_not_create_false_equality(self):
-        # CPython deliberately gives -1 and -2 the same hash.
-        self.assertEqual(hash(-1), hash(-2))
-        edges = {5: -1, -1: -2, -2: -1}
+    def test_return_to_start_is_detected_without_hashing(self):
+        edges = {5: 6, 6: 7, 7: 5}
         expected = EvaluationResult(
-            5, 3, "repeated_state", 5, -1, 1, 2, "repeated_state"
+            5, 3, "repeated_state", 7, 5, 0, 3, "repeated_state"
         )
         self.assertEqual(evaluate_hashset(5, transition=edges.__getitem__), expected)
         self.assertEqual(evaluate(5, transition=edges.__getitem__), expected)
@@ -148,9 +154,9 @@ class MandatoryCycleDetectionTests(unittest.TestCase):
         self.assertEqual(result.repeated_at_step, 1)
         self.assertEqual(result.cycle_length, 1)
 
-    def test_repetition_checked_after_every_generated_step_and_stops_first(self):
+    def test_return_to_start_checked_after_every_generated_step(self):
         calls = []
-        edges = {8: 9, 9: 10, 10: 9}
+        edges = {8: 9, 9: 10, 10: 8}
 
         def transition(n):
             calls.append(n)
@@ -158,10 +164,10 @@ class MandatoryCycleDetectionTests(unittest.TestCase):
 
         result = evaluate(8, transition=transition)
         self.assertEqual(calls, [8, 9, 10])
-        self.assertEqual(result.repeated_integer, "9")
+        self.assertEqual(result.repeated_integer, "8")
         self.assertEqual(
             (result.first_seen_step, result.repeated_at_step, result.cycle_length),
-            (1, 3, 2),
+            (0, 3, 3),
         )
 
     def test_reached_one_has_no_cycle_metadata(self):

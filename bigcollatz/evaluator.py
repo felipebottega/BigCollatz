@@ -44,7 +44,6 @@ def _evaluate_engine(
         raise ValueError("residue_modulus must be at least 2")
 
     state, maximum, steps = start, start, 0
-    seen: dict[int, int] = {start: 0}
     residue_hits: set[int] = {start % residue_modulus} if collect_metrics else set()
     repeated_residue_hit_count = 0
     odd_step_count = 0
@@ -96,31 +95,29 @@ def _evaluate_engine(
                 repeated_residue_hit_count += 1
             else:
                 residue_hits.add(residue)
-        first_seen = seen.get(state)
-        if first_seen is not None:
+        if state == start:
             return EvaluationResult(
                 start,
                 steps,
                 "repeated_state",
                 maximum,
                 repeated_state=state,
-                cycle_entry_step=first_seen,
-                cycle_period=steps - first_seen,
+                cycle_entry_step=0,
+                cycle_period=steps,
                 stopping_reason="repeated_state",
                 repeated_integer=decimal_string(state),
-                first_seen_step=first_seen,
+                first_seen_step=0,
                 repeated_at_step=steps,
-                cycle_length=steps - first_seen,
+                cycle_length=steps,
             ), metrics()
         if state == 1:
             return EvaluationResult(start, steps, "reached_one", maximum), metrics()
-        seen[state] = steps
 
 
 def evaluate(
     start: int, *, transition: Transition = collatz_step, max_steps: int | None = None
 ) -> EvaluationResult:
-    """Evaluate exactly, checking every generated state for exact repetition."""
+    """Evaluate exactly, detecting a cycle when the trajectory returns to start."""
     result, _ = _evaluate_engine(
         start, transition=transition, max_steps=max_steps, collect_metrics=False
     )
@@ -149,5 +146,5 @@ def evaluate_with_metrics(
 def evaluate_hashset(
     start: int, *, transition: Transition = collatz_step, max_steps: int | None = None
 ) -> EvaluationResult:
-    """Backward-compatible alias for the exact mapping evaluator."""
+    """Backward-compatible alias for the constant-memory evaluator."""
     return evaluate(start, transition=transition, max_steps=max_steps)
