@@ -12,12 +12,12 @@ artifacts. It retains completed trajectory lengths for statistics, a ten-entry
 heap for ranking, and any cycle candidates; it does not retain raw trajectories
 or every result record.
 
-`bigcollatz/evaluator.py` is the single authoritative trajectory loop. It keeps
-a trajectory-local mapping from each exact arbitrary-precision integer to its
-first step. This provides mandatory repeated-state detection and the cycle entry
-and period without relying on hashes as proof of equality. The optional metrics
-path uses the same loop, preventing the pilot and normal evaluators from
-drifting apart.
+`bigcollatz/evaluator.py` is the single authoritative trajectory loop. It retains
+the exact initial integer, the current integer, and an iteration counter rather
+than a trajectory-local collection of every state. A cycle is reported only when
+the trajectory returns exactly to its initial integer, at which point the counter
+is its period. The optional metrics path uses the same loop, preventing the pilot
+and normal evaluators from drifting apart.
 
 Normal experiment directories contain `summary.json`, `summary.md`, and
 `top_10.json`. After successful completion, the local top ten is merged by

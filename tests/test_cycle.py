@@ -39,16 +39,16 @@ class CycleTests(unittest.TestCase):
             )
 
     def test_independent_verification_and_artifacts(self):
-        edges = {9: 10, 10: 11, 11: 12, 12: 10}
-        r = EvaluationResult(9, 4, "repeated_state", 12, 10, 1, 3, "repeated_state")
+        edges = {10: 11, 11: 12, 12: 10}
+        r = EvaluationResult(10, 3, "repeated_state", 12, 10, 0, 3, "repeated_state")
         v = verify_nontrivial_cycle(
-            9, r, ["10", "11", "12"], transition=edges.__getitem__
+            10, r, ["10", "11", "12"], transition=edges.__getitem__
         )
         self.assertTrue(v.confirmed)
         self.assertEqual(v.members, [10, 11, 12])
         self.assertFalse(
             verify_nontrivial_cycle(
-                9, r, ["010", "11", "12"], transition=edges.__getitem__
+                10, r, ["010", "11", "12"], transition=edges.__getitem__
             ).confirmed
         )
         with tempfile.TemporaryDirectory() as d:
