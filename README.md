@@ -50,6 +50,19 @@ The practical ceiling is available memory and execution time. Use `--count` and
 strategies read parent trajectories from committed result files, so they require
 the corresponding source artifact to be present.
 
+For full trajectories with millions of digits, an optional GMP accelerator is
+available in `tools/collatz_gmp.c`. It groups consecutive divisions by two while
+preserving the exact unaccelerated step count, maximum, and return-to-start
+detection:
+
+```bash
+gcc -O3 tools/collatz_gmp.c -lgmp -o collatz-gmp
+./collatz-gmp candidate.txt result.txt
+```
+
+This optional executable requires a C compiler and GMP; the Python package keeps
+its dependency-free runtime.
+
 ## Search cycle equations
 
 ```bash
