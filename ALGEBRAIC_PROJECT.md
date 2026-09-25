@@ -90,38 +90,23 @@ templates.
 7. Evaluate modular affine summaries for those targeted primes by tree
    composition and binary powering.
 8. Emit each failed closure congruence as a reproducible certificate.
-9. Label survivors accurately: they are not confirmed cycles.
-10. When exact confirmation is requested, construct `A` and
-    `D = 2^S - 3^k`, require `D > 0` and `D | A`, and replay the resulting odd
-    integer through every prescribed exponent.
+9. Label survivors accurately as symbolic candidates, never as confirmed
+   cycles.
+10. Preserve the compressed representation and rejection certificates; do not
+    construct a starting integer or replay the represented word.
 
 The reported logarithmic gap is a ranking diagnostic only. It is never used as
 a proof because ordinary high-precision decimal arithmetic is not interval
 arithmetic.
 
-## Exact confirmation
+## Symbolic proof boundary
 
-`collatz-algebra --confirm` adds a separate proof phase. It returns
-`confirmed_cycle` only after all of the following exact checks succeed:
-
-1. The closure denominator is positive.
-2. `A` is divisible by `2^S - 3^k` with zero remainder.
-3. The quotient is a positive odd integer.
-4. Every replayed step has exactly the requested value of `v2(3n+1)`.
-5. No member repeats before the final return to the starting integer.
-6. The final member equals the starting integer.
-
-The confirmed report includes the starting integer, minimum and maximum odd
-members, odd period, and unaccelerated period. This is a sufficient check, not a
-probabilistic one.
-
-Exact confirmation has explicit odd-step and integer-bit budgets. If either is
-exceeded, the result is `resource_limit`, never `confirmed_cycle`. This is an
-unavoidable distinction: a modular non-rejection does not supply the enormous
-integer quotient or prove every local 2-adic valuation. A billion-scale cycle
-can be confirmed economically only if an additional concise algebraic
-certificate exists for its particular grammar family; absent such a certificate,
-the proof itself has billion-scale information content.
+The active CLI deliberately has no exact replay or `--confirm` mode. A modular
+failure is a finite proof of impossibility. Passing finitely many congruences is
+reported only as `symbolic_candidate`: it does not establish divisibility by
+the full closure denominator or the local 2-adic valuations. Confirmation may
+be added only when a family has a concise algebraic identity certificate whose
+verification depends on representation size rather than expanded period.
 
 ## Complexity and limitations
 
@@ -143,12 +128,12 @@ exists” is not a valid conclusion from this project.
 - Extend targeted-modulus selection beyond the default small-prime scan, using
   factorizations of relevant multiplicative orders.
 - Add independently checkable certificate bundles for large batch searches.
-- Add family-specific symbolic confirmation certificates whose identities and
+- Add family-specific symbolic entailment certificates whose identities and
   2-adic constraints can be checked without expanding the word.
 - Add interval or exact Diophantine bounds for the narrow positive gap
   `S*ln(2) - k*ln(3)`.
-- Materialize and replay a survivor only when its expanded size is below an
-  explicit resource budget. Billion-scale survivors must remain symbolic.
+- Keep every survivor symbolic. Any future sufficient criterion must verify a
+  concise identity certificate rather than materialize or replay its orbit.
 
 These stages strengthen rejection power; none should silently convert the
 structured search into a claim of exhaustive coverage.

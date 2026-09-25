@@ -4,10 +4,10 @@ import unittest
 from pathlib import Path
 
 from collatz_algebra.cli import main
-from collatz_algebra.confirmation import confirm, exact_affine
 from collatz_algebra.grammar import Concat, Repeat, Step, counts, parse_word
 from collatz_algebra.modular import evaluate_mod
 from collatz_algebra.sieve import analyze, targeted_moduli
+from collatz_algebra.search import boundary_convergents, search_two_run, two_run_word
 
 
 def expand(word):
@@ -56,36 +56,6 @@ class ModularTests(unittest.TestCase):
         word = Concat((Repeat(Step(2), 186_000_000_000), Step(1)))
         residue = evaluate_mod(word, 2_147_483_647)
         self.assertTrue(0 <= residue.additive < 2_147_483_647)
-
-
-class ConfirmationTests(unittest.TestCase):
-    def test_exact_affine_matches_direct_small_word(self):
-        word = Concat((Step(1), Step(3), Step(2)))
-        affine = exact_affine(word)
-        self.assertEqual(
-            (affine.multiplier, affine.additive, affine.denominator),
-            direct(word, affine.denominator + 1),
-        )
-
-    def test_trivial_cycle_is_confirmed_by_exact_replay(self):
-        result = confirm(Step(2))
-        self.assertEqual(result["status"], "confirmed_cycle")
-        self.assertTrue(result["confirmed"])
-        self.assertTrue(result["trivial"])
-        self.assertEqual(result["starting_integer"], "1")
-
-    def test_nonintegral_and_imprimitive_words_are_rejected(self):
-        self.assertEqual(confirm(Step(3))["reason"], "nonintegral_closure_candidate")
-        result = confirm(Concat((Step(2), Step(2))))
-        self.assertEqual(result["status"], "rejected")
-        self.assertEqual(result["reason"], "imprimitive_word")
-
-    def test_billion_scale_word_reports_resource_limit_not_survival(self):
-        word = Concat((Repeat(Step(1), 80_000_000_000), Repeat(Step(2), 40_000_000_000)))
-        result = confirm(word)
-        self.assertEqual(result["status"], "resource_limit")
-        self.assertFalse(result["confirmed"])
-        self.assertEqual(result["odd_steps"], "120000000000")
 
 
 class SieveTests(unittest.TestCase):
@@ -155,55 +125,44 @@ class SieveTests(unittest.TestCase):
                 "collatz-algebra-sieve-v1",
             )
 
-    def test_cli_confirmation_has_distinct_success_and_resource_exit_codes(self):
+    def test_cli_searches_representations_without_trajectories(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            trivial = root / "trivial.json"
-            huge = root / "huge.json"
             output = root / "report.json"
-            trivial.write_text(json.dumps({"step": 2}), encoding="utf-8")
-            huge.write_text(
-                json.dumps(
-                    {
-                        "concat": [
-                            {"repeat": {"word": {"step": 1}, "times": "40000000000"}},
-                            {"repeat": {"word": {"step": 2}, "times": "80000000000"}},
-                        ]
-                    }
-                ),
-                encoding="utf-8",
-            )
             self.assertEqual(
                 main(
                     [
-                        str(trivial),
+                        "--search-two-run",
+                        "1000",
                         "--minimum-period",
                         "1",
-                        "--confirm",
                         "--output",
                         str(output),
                     ]
                 ),
                 0,
             )
-            self.assertEqual(
-                json.loads(output.read_text(encoding="utf-8"))["confirmation"][
-                    "status"
-                ],
-                "confirmed_cycle",
+            report = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(report["schema"], "collatz-symbolic-search-v1")
+            self.assertFalse(report["trajectory_terms_computed"])
+
+
+class SymbolicSearchTests(unittest.TestCase):
+    def test_convergents_are_compact_boundary_proposals(self):
+        proposals = list(boundary_convergents(1_000_000))
+        self.assertTrue(proposals)
+        self.assertTrue(all(k <= 1_000_000 for k, _ in proposals))
+
+    def test_two_run_counts_without_expansion(self):
+        word = two_run_word(70_000_000_000, 111_000_000_000)
+        self.assertEqual(counts(word), (70_000_000_000, 111_000_000_000))
+
+    def test_search_never_claims_confirmation(self):
+        report = search_two_run(10_000, minimum_period=1, prime_limit=100)
+        self.assertFalse(report["trajectory_terms_computed"])
+        self.assertTrue(
+            all(
+                item["status"] in {"rejected", "symbolic_candidate"}
+                for item in report["candidates"]
             )
-            self.assertEqual(
-                main(
-                    [
-                        str(huge),
-                        "--minimum-period",
-                        "1",
-                        "--confirm",
-                        "--modulus",
-                        "2",
-                        "--output",
-                        str(output),
-                    ]
-                ),
-                2,
-            )
+        )
