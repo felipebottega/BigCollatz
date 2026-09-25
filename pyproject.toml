@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "bigcollatz"
 version = "0.1.0"
-description = "Exact, reproducible experiments on large Collatz trajectories"
+description = "Compressed algebraic sieves and reproducible Collatz experiments"
 requires-python = ">=3.11"
 
 [project.scripts]
 bigcollatz = "bigcollatz.cli:main"
+collatz-algebra = "collatz_algebra.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["bigcollatz*"]
-
+include = ["bigcollatz*", "collatz_algebra*"]

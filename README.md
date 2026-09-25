@@ -1,5 +1,49 @@
 # BigCollatz
 
+## New algebraic project
+
+The active research path is now `collatz-algebra`, a from-scratch symbolic sieve
+for accelerated Collatz cycle words. It is designed around a working lower bound
+of 186 billion unaccelerated terms and therefore never enumerates the represented
+trajectory. Repeated structures are stored as a straight-line grammar and
+evaluated through modular affine composition in logarithmic time.
+
+The approach is computationally feasible for **compressed, structured cycle
+families**; it is intentionally not advertised as an exhaustive search over all
+words of that length. See [`ALGEBRAIC_PROJECT.md`](ALGEBRAIC_PROJECT.md) for the
+model, proof obligations, complexity, and limitations.
+
+Analyze the included billion-scale example:
+
+```bash
+python -m collatz_algebra.cli examples/billion_period_word.json
+```
+
+The command emits JSON. A rejection includes machine-checkable necessary-
+condition failures. A survivor is labeled as a survivor, never as a discovered
+cycle. Exit status is `1` for a rejected word and `0` for a survivor, making the
+tool suitable for batch sieves. By default it scans primes through 10,000 and
+evaluates the word only for primes that divide the symbolic closure coefficient;
+`--prime-limit` increases that search and repeated `--modulus` options select
+explicit moduli instead.
+
+Request exact confirmation with `--confirm`. Confirmation constructs the exact
+closure integer and replays every accelerated step, including the prescribed
+`v2(3n+1)` exponent and primitiveness checks:
+
+```bash
+python -m collatz_algebra.cli word.json --confirm \
+  --max-confirm-odd-steps 1000000 \
+  --max-confirm-integer-bits 8000000
+```
+
+The result is exactly one of `confirmed_cycle`, `rejected`, or `resource_limit`.
+A resource-limited word is not reported as a survivor that might be mistaken
+for a cycle. The two explicit budgets prevent an attempted confirmation from
+silently allocating billion-term histories or billion-bit integers.
+
+## Legacy trajectory experiments
+
 BigCollatz runs exact, reproducible experiments on the unaccelerated Collatz map
 for positive integers with **more than 1,000,000 decimal digits**. Its scientific
 objective is to find a
