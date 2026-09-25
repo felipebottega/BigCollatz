@@ -1,12 +1,14 @@
 # BigCollatz
 
-## New algebraic project
+## Projeto simbólico ativo
 
-The active research path is now `collatz-algebra`, a from-scratch symbolic sieve
+The active research path is `collatz-algebra`, a symbolic sieve
 for accelerated Collatz cycle words. It is designed around a working lower bound
 of 186 billion unaccelerated terms and therefore never enumerates the represented
 trajectory. Repeated structures are stored as a straight-line grammar and
-evaluated through modular affine composition in logarithmic time.
+evaluated through modular affine composition in logarithmic time. The project
+does not calculate a trajectory or a gigantic starting integer as its final
+criterion; it searches finite representations that could entail a cycle.
 
 The approach is computationally feasible for **compressed, structured cycle
 families**; it is intentionally not advertised as an exhaustive search over all
@@ -27,20 +29,16 @@ evaluates the word only for primes that divide the symbolic closure coefficient;
 `--prime-limit` increases that search and repeated `--modulus` options select
 explicit moduli instead.
 
-Request exact confirmation with `--confirm`. Confirmation constructs the exact
-closure integer and replays every accelerated step, including the prescribed
-`v2(3n+1)` exponent and primitiveness checks:
+Search the first implemented representation family directly:
 
 ```bash
-python -m collatz_algebra.cli word.json --confirm \
-  --max-confirm-odd-steps 1000000 \
-  --max-confirm-integer-bits 8000000
+python -m collatz_algebra.cli --search-two-run 1000000 --minimum-period 1
 ```
 
-The result is exactly one of `confirmed_cycle`, `rejected`, or `resource_limit`.
-A resource-limited word is not reported as a survivor that might be mistaken
-for a cycle. The two explicit budgets prevent an attempted confirmation from
-silently allocating billion-term histories or billion-bit integers.
+The search uses continued-fraction proposals near the algebraic positivity
+boundary and reports only `rejected` or `symbolic_candidate`. A candidate is
+not a confirmed cycle. See [`RESEARCH_SYMBOLIC.md`](RESEARCH_SYMBOLIC.md) for
+the derivation, bibliography, proof boundary, and coverage limitations.
 
 ## Legacy trajectory experiments
 
