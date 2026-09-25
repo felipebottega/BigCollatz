@@ -1,0 +1,19 @@
+{
+  "concat": [
+    {
+      "repeat": {
+        "word": {
+          "concat": [
+            {"step": 1},
+            {"step": 2},
+            {"step": 2},
+            {"step": 1},
+            {"step": 2}
+          ]
+        },
+        "times": "25000000000"
+      }
+    },
+    {"step": 3}
+  ]
+}
