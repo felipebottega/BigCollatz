@@ -27,6 +27,21 @@ evaluates the word only for primes that divide the symbolic closure coefficient;
 `--prime-limit` increases that search and repeated `--modulus` options select
 explicit moduli instead.
 
+Request exact confirmation with `--confirm`. Confirmation constructs the exact
+closure integer and replays every accelerated step, including the prescribed
+`v2(3n+1)` exponent and primitiveness checks:
+
+```bash
+python -m collatz_algebra.cli word.json --confirm \
+  --max-confirm-odd-steps 1000000 \
+  --max-confirm-integer-bits 8000000
+```
+
+The result is exactly one of `confirmed_cycle`, `rejected`, or `resource_limit`.
+A resource-limited word is not reported as a survivor that might be mistaken
+for a cycle. The two explicit budgets prevent an attempted confirmation from
+silently allocating billion-term histories or billion-bit integers.
+
 ## Legacy trajectory experiments
 
 BigCollatz runs exact, reproducible experiments on the unaccelerated Collatz map
