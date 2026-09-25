@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Sequence
 
 from .grammar import parse_word
-from .confirmation import ConfirmationStatus, confirm
 from .sieve import DEFAULT_MINIMUM_PERIOD, DEFAULT_PRIME_LIMIT, analyze
+from .search import search_two_run
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -17,7 +17,15 @@ def _parser() -> argparse.ArgumentParser:
         prog="collatz-algebra",
         description="Sieve compressed accelerated-Collatz cycle words",
     )
-    parser.add_argument("word", type=Path, help="JSON straight-line word grammar")
+    parser.add_argument(
+        "word", type=Path, nargs="?", help="JSON straight-line word grammar"
+    )
+    parser.add_argument(
+        "--search-two-run",
+        type=int,
+        metavar="MAX_ODD_STEPS",
+        help="search symbolic 1^u 2^v representations selected by convergents",
+    )
     parser.add_argument(
         "--minimum-period",
         type=int,
@@ -37,44 +45,37 @@ def _parser() -> argparse.ArgumentParser:
         help="scan primes through this value for divisors of the closure coefficient",
     )
     parser.add_argument("--output", type=Path, help="write JSON report to this file")
-    parser.add_argument(
-        "--confirm",
-        action="store_true",
-        help="construct and replay an exact candidate after sieving",
-    )
-    parser.add_argument("--max-confirm-odd-steps", type=int, default=1_000_000)
-    parser.add_argument("--max-confirm-integer-bits", type=int, default=8_000_000)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    document = json.loads(args.word.read_text(encoding="utf-8"))
-    word = parse_word(document)
-    report = analyze(
-        word,
-        moduli=args.modulus,
-        minimum_period=args.minimum_period,
-        prime_limit=args.prime_limit,
-    )
-    if args.confirm:
-        report["confirmation"] = confirm(
+    if (args.word is None) == (args.search_two_run is None):
+        _parser().error("supply exactly one of WORD or --search-two-run")
+    if args.search_two_run is not None:
+        if args.modulus:
+            _parser().error("--modulus is only valid with WORD")
+        report = search_two_run(
+            args.search_two_run,
+            minimum_period=args.minimum_period,
+            prime_limit=args.prime_limit,
+        )
+    else:
+        document = json.loads(args.word.read_text(encoding="utf-8"))
+        word = parse_word(document)
+        report = analyze(
             word,
-            max_odd_steps=args.max_confirm_odd_steps,
-            max_integer_bits=args.max_confirm_integer_bits,
+            moduli=args.modulus,
+            minimum_period=args.minimum_period,
+            prime_limit=args.prime_limit,
         )
     rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.write_text(rendered, encoding="utf-8")
     else:
         print(rendered, end="")
-    if report["rejected"]:
+    if report.get("rejected"):
         return 1
-    if args.confirm:
-        status = report["confirmation"]["status"]
-        if status == ConfirmationStatus.CONFIRMED.value:
-            return 0
-        return 2 if status == ConfirmationStatus.RESOURCE_LIMIT.value else 1
     return 0
 
 
