@@ -29,11 +29,15 @@ mantém os três componentes da transformação como um circuito afim e os avali
 apenas módulo inteiros pequenos. Uma repetição com `r` cópias custa `O(log r)`
 composições. Não se constrói `A`, `2^S`, `3^k`, `x`, nem termo algum da órbita.
 
-O resultado `symbolic_candidate` quer dizer somente que a representação passou
-pelas condições necessárias implementadas. Não significa que exista um inteiro
-inicial, pois ainda faltam a divisibilidade integral, todas as condições locais
-2-ádicas e a positividade dos membros. Em particular, testes modulares finitos
-podem **refutar**, mas jamais confirmar, uma representação.
+O componente modular interno pode produzir `symbolic_candidate`, que quer dizer
+somente que a representação passou pelas condições necessárias implementadas.
+Não significa que exista um inteiro inicial, pois ainda faltam a divisibilidade
+integral, todas as condições locais 2-ádicas e a positividade dos membros. Em
+particular, testes modulares finitos podem **refutar**, mas jamais confirmar, uma
+representação. Por isso a CLI pública não encerra mais uma palavra JSON com esse
+resultado: ela só admite palavras dentro do limite de verificação exata e marca
+as demais como `not_tested`. Buscas enormes precisam de um teorema que decida a
+família inteira.
 
 ## Artigos e resultados consultados
 

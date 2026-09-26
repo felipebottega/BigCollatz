@@ -1,4 +1,4 @@
-"""Command-line entry point for the compressed algebraic sieve."""
+"""Command-line entry point for definitive compressed-word decisions."""
 
 from __future__ import annotations
 
@@ -7,15 +7,16 @@ import json
 from pathlib import Path
 from typing import Sequence
 
+from .definitive import DEFAULT_EXACT_WORK_LIMIT, IneligibleCandidate, verify_exact
 from .grammar import parse_word
-from .sieve import DEFAULT_MINIMUM_PERIOD, DEFAULT_PRIME_LIMIT, analyze
+from .sieve import DEFAULT_MINIMUM_PERIOD, DEFAULT_PRIME_LIMIT
 from .search import search_two_run
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="collatz-algebra",
-        description="Sieve compressed accelerated-Collatz cycle words",
+        description="Decide eligible compressed accelerated-Collatz cycle words",
     )
     parser.add_argument(
         "word", type=Path, nargs="?", help="JSON straight-line word grammar"
@@ -44,6 +45,15 @@ def _parser() -> argparse.ArgumentParser:
         default=DEFAULT_PRIME_LIMIT,
         help="scan primes through this value for divisors of the closure coefficient",
     )
+    parser.add_argument(
+        "--exact-work-limit",
+        type=int,
+        default=DEFAULT_EXACT_WORK_LIMIT,
+        help=(
+            "accept a WORD only when both its odd-step count and total divisions "
+            "fit this exact-verification bound"
+        ),
+    )
     parser.add_argument("--output", type=Path, help="write JSON report to this file")
     return parser
 
@@ -63,20 +73,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         document = json.loads(args.word.read_text(encoding="utf-8"))
         word = parse_word(document)
-        report = analyze(
-            word,
-            moduli=args.modulus,
-            minimum_period=args.minimum_period,
-            prime_limit=args.prime_limit,
-        )
+        if args.modulus:
+            _parser().error("--modulus is unavailable for definitive WORD verification")
+        try:
+            report = verify_exact(word, work_limit=args.exact_work_limit)
+        except IneligibleCandidate as exc:
+            report = {
+                "schema": "collatz-algebra-ineligible-v1",
+                "definitive": False,
+                "conclusion": "not_tested",
+                "reason": str(exc),
+                "counts": {
+                    "odd_steps": str(exc.odd_steps),
+                    "total_divisions": str(exc.total_divisions),
+                    "unaccelerated_period": str(
+                        exc.odd_steps + exc.total_divisions
+                    ),
+                },
+                "exact_work_limit": exc.work_limit,
+            }
     rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.write_text(rendered, encoding="utf-8")
     else:
         print(rendered, end="")
-    if report.get("rejected"):
-        return 1
-    return 0
+    if report.get("conclusion") == "not_tested":
+        return 2
+    return 0 if report.get("is_cycle", True) else 1
 
 
 if __name__ == "__main__":
