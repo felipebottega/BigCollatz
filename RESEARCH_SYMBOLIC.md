@@ -65,6 +65,10 @@ podem **refutar**, mas jamais confirmar, uma representação.
    (2022), [arXiv:1909.03562](https://arxiv.org/abs/1909.03562). É um resultado
    sobre quase todas as órbitas, não uma exclusão de ciclos; por isso não é
    convertido em filtro neste projeto.
+9. R. P. Steiner, *A theorem on the Syracuse problem* (1977), Proceedings of
+   the Seventh Manitoba Conference on Numerical Mathematics and Computing,
+   pp. 553–559. Prova que não há ciclo positivo não trivial com um único
+   mínimo local (um `1-cycle`).
 
 ## Espaço inicial de representações
 
@@ -74,7 +78,16 @@ de `log_2(3)` propõem pares `(k,S)` próximos da fronteira positiva, conforme a
 motivação diofantina de Eliahou e Simons–de Weger. A fração contínua é apenas
 uma heurística de **seleção**; decisões de rejeição continuam inteiras.
 
-Essa família não é exaustiva. Próximas extensões devem acrescentar famílias de
-`m` blocos, quocientar rotações simbolicamente e emitir provas independentes
-das congruências rejeitadas. Nenhuma etapa futura deve reintroduzir replay de
-trajetória como critério final.
+Para todo membro dessa família, os passos de expoente 1 formam a única subida
+estrita e os passos de expoente 2 formam a única descida estrita (para termos
+ímpares maiores que 1). Portanto a palavra descreveria um `1-cycle`. O teorema
+de Steiner elimina rigorosamente toda a família não trivial, inclusive os dois
+casos de centenas de bilhões/trilhões de passos que antes sobreviviam apenas
+porque `2^S-3^k` não tinha divisor primo pequeno no limite pesquisado. O ciclo
+trivial tem palavra `[2]`, não `1^u 2^v` com `u,v>0`.
+
+Essa família não é exaustiva. Como agora ela está completamente eliminada, a
+busca de ciclos deve avançar para palavras com pelo menos duas subidas e duas
+descidas, isto é, famílias de `m`-ciclos com `m >= 2`, quocientando rotações
+simbolicamente e emitindo provas independentes. Nenhuma etapa futura deve
+reintroduzir replay de trajetória como critério final.

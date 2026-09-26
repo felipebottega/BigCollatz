@@ -63,6 +63,33 @@ def two_run_word(odd_steps: int, total_divisions: int) -> Word:
     return Concat((Repeat(Step(1), u), Repeat(Step(2), v)))
 
 
+def _reject_one_cycle_family(report: dict[str, object], u: int, v: int) -> None:
+    """Apply Steiner's one-cycle theorem to ``1**u 2**v``.
+
+    For an odd member greater than one, exponent 1 is a strict increase and
+    exponent 2 is a strict decrease.  Hence this word has exactly one local
+    minimum and one local maximum.  Steiner proved that a positive Collatz
+    cycle of this type is necessarily the trivial cycle.  The trivial cycle
+    has word ``[2]`` and is not in this family because ``u`` and ``v`` are both
+    positive.
+    """
+
+    certificate = {
+        "filter": "steiner_one_cycle_theorem",
+        "rigorous": True,
+        "family": "1^u 2^v",
+        "one_run": str(u),
+        "two_run": str(v),
+        "reason": "a nontrivial positive 1-cycle does not exist",
+        "reference": "Steiner, A theorem on the Syracuse problem (1977)",
+    }
+    reasons = report["rejection_certificates"]
+    assert isinstance(reasons, list)
+    reasons.append(certificate)
+    report["rejected"] = True
+    report["conclusion"] = "impossible_one_cycle_family"
+
+
 def search_two_run(
     max_odd_steps: int,
     *,
@@ -81,6 +108,14 @@ def search_two_run(
             minimum_period=minimum_period,
             prime_limit=prime_limit,
         )
+        # Every member produced by this search has one increasing and one
+        # decreasing run.  This theorem closes the gap left by finite modular
+        # tests, including cases where no small prime divides 2**S - 3**k.
+        _reject_one_cycle_family(
+            report,
+            2 * odd_steps - total_divisions,
+            total_divisions - odd_steps,
+        )
         candidates.append(
             {
                 "parameters": {
@@ -98,6 +133,7 @@ def search_two_run(
         "family": "1^u 2^v",
         "selection": "upper continued-fraction convergents of log_2(3)",
         "coverage_is_exhaustive": False,
+        "family_eliminated_by": "Steiner one-cycle theorem (1977)",
         "trajectory_terms_computed": False,
         "candidates": candidates,
     }

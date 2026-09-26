@@ -36,9 +36,12 @@ python -m collatz_algebra.cli --search-two-run 1000000 --minimum-period 1
 ```
 
 The search uses continued-fraction proposals near the algebraic positivity
-boundary and reports only `rejected` or `symbolic_candidate`. A candidate is
-not a confirmed cycle. See [`RESEARCH_SYMBOLIC.md`](RESEARCH_SYMBOLIC.md) for
-the derivation, bibliography, proof boundary, and coverage limitations.
+boundary. Every proposed `1^u 2^v` word is now rejected symbolically by
+Steiner's one-cycle theorem: the single increasing run followed by a single
+decreasing run cannot be a nontrivial positive cycle. This closes the vacuous
+modular survivors previously reported at billion-scale periods. See
+[`RESEARCH_SYMBOLIC.md`](RESEARCH_SYMBOLIC.md) for the derivation,
+bibliography, proof boundary, and the required next search space (`m >= 2`).
 
 ## Legacy trajectory experiments
 

@@ -157,12 +157,37 @@ class SymbolicSearchTests(unittest.TestCase):
         word = two_run_word(70_000_000_000, 111_000_000_000)
         self.assertEqual(counts(word), (70_000_000_000, 111_000_000_000))
 
-    def test_search_never_claims_confirmation(self):
+    def test_search_rejects_entire_one_cycle_family(self):
         report = search_two_run(10_000, minimum_period=1, prime_limit=100)
         self.assertFalse(report["trajectory_terms_computed"])
+        self.assertTrue(report["candidates"])
+        self.assertTrue(all(item["status"] == "rejected" for item in report["candidates"]))
         self.assertTrue(
             all(
-                item["status"] in {"rejected", "symbolic_candidate"}
+                any(
+                    reason["filter"] == "steiner_one_cycle_theorem"
+                    for reason in item["analysis"]["rejection_certificates"]
+                )
                 for item in report["candidates"]
+            )
+        )
+
+    def test_billion_scale_candidates_receive_symbolic_theorem_certificates(self):
+        report = search_two_run(
+            186_000_000_000,
+            minimum_period=186_000_000_000,
+            prime_limit=100,
+        )
+        large = [
+            item
+            for item in report["candidates"]
+            if int(item["parameters"]["odd_steps"]) >= 100_000_000_000
+        ]
+        self.assertTrue(large)
+        self.assertTrue(all(item["status"] == "rejected" for item in large))
+        self.assertTrue(
+            all(
+                item["analysis"]["conclusion"] == "impossible_one_cycle_family"
+                for item in large
             )
         )
