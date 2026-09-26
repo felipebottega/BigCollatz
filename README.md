@@ -2,32 +2,29 @@
 
 ## Projeto simbólico ativo
 
-The active research path is `collatz-algebra`, a symbolic sieve
-for accelerated Collatz cycle words. It is designed around a working lower bound
-of 186 billion unaccelerated terms and therefore never enumerates the represented
-trajectory. Repeated structures are stored as a straight-line grammar and
-evaluated through modular affine composition in logarithmic time. The project
-does not calculate a trajectory or a gigantic starting integer as its final
-criterion; it searches finite representations that could entail a cycle.
+The active research path is `collatz-algebra`. It now admits a candidate only
+when the selected path is guaranteed to finish with a definitive answer. A JSON
+word is verified exactly only when both its odd-step count and total divisions
+fit a configurable work bound. Larger generic words are reported as `not_tested`
+before their repetitions are expanded or their affine integers are constructed.
+The billion-scale symbolic search is restricted to families with a theorem that
+decides every generated member.
 
-The approach is computationally feasible for **compressed, structured cycle
-families**; it is intentionally not advertised as an exhaustive search over all
-words of that length. See [`ALGEBRAIC_PROJECT.md`](ALGEBRAIC_PROJECT.md) for the
-model, proof obligations, complexity, and limitations.
+The approach is intentionally not advertised as an exhaustive search over all
+words. See [`ALGEBRAIC_PROJECT.md`](ALGEBRAIC_PROJECT.md) for the model, proof
+obligations, eligibility policy, complexity, and limitations.
 
-Analyze the included billion-scale example:
+Ask whether the included billion-scale example is eligible for exact checking:
 
 ```bash
 python -m collatz_algebra.cli examples/billion_period_word.json
 ```
 
-The command emits JSON. A rejection includes machine-checkable necessary-
-condition failures. A survivor is labeled as a survivor, never as a discovered
-cycle. Exit status is `1` for a rejected word and `0` for a survivor, making the
-tool suitable for batch sieves. By default it scans primes through 10,000 and
-evaluates the word only for primes that divide the symbolic closure coefficient;
-`--prime-limit` increases that search and repeated `--modulus` options select
-explicit moduli instead.
+The command emits `not_tested` and exits with status `2`: its exact proof would
+exceed the default work bound, so the program does not run an inconclusive sieve.
+For eligible JSON words, status `0` means a confirmed cycle and status `1` means
+an exact rejection. `--exact-work-limit` configures the admission bound; both the
+odd-step count and total divisions must fit it.
 
 Search the first implemented representation family directly:
 
@@ -36,7 +33,7 @@ python -m collatz_algebra.cli --search-two-run 1000000 --minimum-period 1
 ```
 
 The search uses continued-fraction proposals near the algebraic positivity
-boundary. Every proposed `1^u 2^v` word is now rejected symbolically by
+boundary. Every proposed `1^u 2^v` word is rejected definitively by
 Steiner's one-cycle theorem: the single increasing run followed by a single
 decreasing run cannot be a nontrivial positive cycle. This closes the vacuous
 modular survivors previously reported at billion-scale periods. See

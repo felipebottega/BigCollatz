@@ -11,12 +11,12 @@ use different cycle and step conventions. The project never translates that
 period premise into a claim about the number of decimal digits of a cycle
 member.
 
-This is deliberately a **sieve**, not an exhaustive solver. An arbitrary cycle
-of that period contains too much information even to write down. The tractable
-search domain consists of exponent words that have a short straight-line
-grammar: concatenations and repeated subwords. The hypothesis being tested is
-that a hypothetical cycle has enough algebraic structure to admit such a
-compressed description.
+This is deliberately not an exhaustive solver. An arbitrary cycle of that
+period contains too much information even to write down. The command-line
+interface therefore admits only candidates for which its selected method is
+guaranteed to return a definitive answer: bounded words receive exact checking,
+and enormous generated words must belong to a family eliminated or confirmed by
+a symbolic theorem. Other compressed words are reported as `not_tested`.
 
 ## Algebraic model
 
@@ -77,23 +77,21 @@ immediately rejected as imprimitive: it describes repetitions of a shorter
 cycle. Repetition below a concatenation remains useful for structured primitive
 templates.
 
-## Pipeline
+## Definitive bounded-word pipeline
 
 1. Parse and validate a compressed exponent word.
-2. Compute `k`, `S`, and `k + S` symbolically.
-3. Enforce the configured period premise.
-4. Reject an obvious top-level power.
-5. Apply the exact rational positivity bound
-   `665*S <= 1054*k => 2^S < 3^k`.
-6. Scan small primes and retain only those dividing `2^S - 3^k`, using modular
-   powers rather than constructing that enormous coefficient.
-7. Evaluate modular affine summaries for those targeted primes by tree
-   composition and binary powering.
-8. Emit each failed closure congruence as a reproducible certificate.
-9. Label survivors accurately as symbolic candidates, never as confirmed
-   cycles.
-10. Preserve the compressed representation and rejection certificates; do not
-    construct a starting integer or replay the represented word.
+2. Compute `k`, `S`, and `k + S` without expanding repetitions.
+3. Before constructing large integers, require both `k` and `S` to fit the
+   configured exact-work limit. Otherwise return `not_tested`.
+4. For an admitted word, construct the exact Böhm–Sontacchi additive term `A`
+   and closure denominator `D = 2^S - 3^k`.
+5. Reject nonpositive `D`, or reject when `D` does not divide `A`.
+6. Set `n = A/D`, require a positive odd integer, and replay every accelerated
+   step exactly.
+7. At every step require `v2(3*n_i + 1) = a_i`, then require the final member to
+   equal the initial member.
+8. Emit only `confirmed_*_cycle` or `not_a_cycle`; no admitted word can finish as
+   a mere survivor.
 
 The reported logarithmic gap is a ranking diagnostic only. It is never used as
 a proof because ordinary high-precision decimal arithmetic is not interval
@@ -101,25 +99,27 @@ arithmetic.
 
 ## Symbolic proof boundary
 
-The active CLI deliberately has no exact replay or `--confirm` mode. A modular
-failure is a finite proof of impossibility. Passing finitely many congruences is
-reported only as `symbolic_candidate`: it does not establish divisibility by
-the full closure denominator or the local 2-adic valuations. Confirmation may
-be added only when a family has a concise algebraic identity certificate whose
-verification depends on representation size rather than expanded period.
+The active CLI performs exact replay only inside the explicit bound. The older
+modular sieve remains an internal research component, but the CLI no longer
+uses a finite set of congruences as the final result for an arbitrary JSON word:
+passing them would not establish divisibility by the full closure denominator or
+the local 2-adic valuations. Above the exact bound, admission requires a
+family-specific theorem whose verification depends on representation size rather
+than expanded period. The implemented `1^u 2^v` search qualifies because
+Steiner's theorem rejects every nontrivial member.
 
 ## Complexity and limitations
 
-For a grammar of `g` nodes, largest repetition `r`, and `q` moduli, evaluation
-uses approximately `O(q * g * log r)` modular compositions. Memory depends on
-grammar size, not expanded period. This makes individual structured candidates
-at the 186-billion-step scale practical.
+Eligibility counting costs `O(g)` for a grammar of `g` nodes. Exact checking is
+pseudo-polynomial in the admitted `k` and `S` and constructs integers with
+`O(S)` bits. The default bound makes that work explicit and prevents a compressed
+input from unexpectedly expanding into a 186-billion-step computation.
 
-It does **not** make an exhaustive search over all cycles practical. Most words
-are incompressible, and no finite collection of grammar templates covers them.
-The sieve is therefore scientifically useful only if reports state the grammar
-family searched, parameter ranges, moduli, and number of survivors. “No cycle
-exists” is not a valid conclusion from this project.
+The symbolic theorem path can still decide compact candidates at the
+186-billion-step scale, but only within a theorem-covered family. It does **not**
+make an exhaustive search over all cycles practical. Most words are
+incompressible, and no finite collection of grammar templates covers them. “No
+cycle exists” is not a valid conclusion from this project.
 
 ## Next research stages
 

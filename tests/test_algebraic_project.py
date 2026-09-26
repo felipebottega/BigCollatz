@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from collatz_algebra.cli import main
+from collatz_algebra.definitive import IneligibleCandidate, verify_exact
 from collatz_algebra.grammar import Concat, Repeat, Step, counts, parse_word
 from collatz_algebra.modular import evaluate_mod
 from collatz_algebra.sieve import analyze, targeted_moduli
@@ -110,10 +111,6 @@ class SieveTests(unittest.TestCase):
                 main(
                     [
                         str(source),
-                        "--minimum-period",
-                        "1",
-                        "--modulus",
-                        "5",
                         "--output",
                         str(output),
                     ]
@@ -122,8 +119,24 @@ class SieveTests(unittest.TestCase):
             )
             self.assertEqual(
                 json.loads(output.read_text(encoding="utf-8"))["schema"],
-                "collatz-algebra-sieve-v1",
+                "collatz-algebra-definitive-v1",
             )
+
+    def test_cli_does_not_test_an_ineligible_word(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "word.json"
+            output = root / "report.json"
+            source.write_text(
+                json.dumps(
+                    {"repeat": {"word": {"step": 2}, "times": "1000001"}}
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(main([str(source), "--output", str(output)]), 2)
+            report = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(report["conclusion"], "not_tested")
+            self.assertFalse(report["definitive"])
 
     def test_cli_searches_representations_without_trajectories(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -171,6 +184,31 @@ class SymbolicSearchTests(unittest.TestCase):
                 for item in report["candidates"]
             )
         )
+
+
+class DefinitiveVerificationTests(unittest.TestCase):
+    def test_confirms_the_trivial_cycle_exactly(self):
+        report = verify_exact(Step(2), work_limit=2)
+        self.assertTrue(report["definitive"])
+        self.assertTrue(report["is_cycle"])
+        self.assertEqual(report["conclusion"], "confirmed_trivial_cycle")
+        self.assertEqual(report["starting_integer"], "1")
+
+    def test_rejects_nonintegral_closure_exactly(self):
+        report = verify_exact(Step(3), work_limit=3)
+        self.assertTrue(report["definitive"])
+        self.assertFalse(report["is_cycle"])
+        self.assertEqual(report["reason"], "nonintegral_closure")
+
+    def test_replays_every_local_2_adic_valuation(self):
+        report = verify_exact(Concat((Step(2), Step(2))), work_limit=4)
+        self.assertTrue(report["is_cycle"])
+        self.assertEqual(report["conclusion"], "confirmed_trivial_cycle")
+
+    def test_rejects_before_expansion_when_work_is_unbounded(self):
+        word = Repeat(Concat((Step(1), Step(2))), 93_000_000_000)
+        with self.assertRaises(IneligibleCandidate):
+            verify_exact(word)
 
     def test_billion_scale_candidates_receive_symbolic_theorem_certificates(self):
         report = search_two_run(
