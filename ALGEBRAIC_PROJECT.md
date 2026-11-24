@@ -16,18 +16,31 @@ $$
 \mathcal{F}=\{\,1^u 2^w 1^v 3^z \mid u,w,v,z\in\mathbb{Z}_{>0}\,\}.
 $$
 
-Here $2^w$ means $w$ consecutive entries of value $2$. In this notation,
-the superscript counts repetitions of an entry. A member with two entries
-in the first block, one in the second, one in the third, and two in the
-fourth is
+The superscript counts repetitions. For example, $2^w$ means $w$
+consecutive entries of value $2$. Choosing block lengths $2,1,1,2$ gives
 
 $$
-1^2 2^1 1^1 3^2 \;\longleftrightarrow\; (1,1,2,1,3,3).
+1^2 2^1 1^1 3^2 \longleftrightarrow (1,1,2,1,3,3).
 $$
 
-For odd values greater than one, one division gives an uphill step and
-two or more divisions give a downhill step. The template above has two
-uphill runs and two downhill runs.
+Read each entry as the number of divisions by two after applying $3x+1$.
+For odd terms greater than one, a single division makes the value rise
+and two or more make it fall. The six entries therefore mean
+**rise, rise, fall, rise, fall, fall**. The first two rises form one
+run, and the last two falls form another.
+
+Starting from $3367$, the actual odd terms are
+
+$$
+3367 \xrightarrow{1} 5051 \xrightarrow{1} 7577
+\xrightarrow{2} 5683 \xrightarrow{1} 8525
+\xrightarrow{3} 3197 \xrightarrow{3} 1199.
+$$
+
+Each arrow includes the $3x+1$ operation. Its label counts the divisions
+that follow. For instance, $3\cdot7577+1=22732$, and dividing by two twice
+gives $5683$. The six steps end at $1199$, so this segment does not close
+back at $3367$.
 
 ### How the command bounds relate to a family
 
