@@ -1,9 +1,8 @@
 # Algebraic Collatz model
 
 BigCollatz studies positive Collatz cycles by representing their odd-to-odd
-steps as exponent words. The public search excludes a structured family symbolically. The internal
-exact verifier checks bounded words. See the
-[period lower bound](README.md#lower-bound-for-a-nontrivial-cycle).
+steps as exponent words. The public search excludes a structured family
+symbolically. The internal exact verifier checks bounded words.
 
 ## Cycle equation
 
@@ -24,6 +23,21 @@ A         = sum over j=0,...,k-1 of 3^(k-1-j) * 2^(a_0+...+a_(j-1))
 
 The exponent in the first summand is zero. The unaccelerated period is
 `k + S`, and a positive solution requires `2^S > 3^k`.
+
+## Lower bound for a nontrivial cycle
+
+Barina's verification below `2^71` provides a lower bound on the members of
+a nontrivial cycle. Let `k` count odd steps
+and `S` count divisions by 2. Each odd member `n` of a nontrivial cycle is
+at least `2^71`. Multiplying the odd-to-odd updates around the cycle gives
+`2^S = product(3 + 1/n)`, so
+`log2(3) < S/k < log2(3) + 1/(3 * 2^71 * ln(2))`.
+This interval lies strictly between the fractions
+`103768467013/65470613321` and `10439860591/6586818670`.
+Their cross products differ by one, so any fraction strictly between them
+has numerator and denominator at least the respective sums. Thus
+`S >= 114,208,327,604`, `k >= 72,057,431,991`, and the period `S + k`
+is at least 186,265,759,595.
 
 ## Compressed words and exact verification
 

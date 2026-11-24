@@ -2,7 +2,7 @@
 
 from .grammar import Concat, Repeat, Step, Word, parse_word
 from .sieve import DEFAULT_MINIMUM_PERIOD, analyze, targeted_moduli
-from .search import boundary_convergents, search_two_run, two_run_word
+from .search import boundary_convergents, search_cycles, two_run_word
 
 __all__ = [
     "Concat",
@@ -13,7 +13,7 @@ __all__ = [
     "analyze",
     "boundary_convergents",
     "parse_word",
-    "search_two_run",
+    "search_cycles",
     "targeted_moduli",
     "two_run_word",
 ]

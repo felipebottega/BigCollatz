@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .sieve import DEFAULT_MINIMUM_PERIOD, DEFAULT_PRIME_LIMIT
-from .search import search_two_run
+from .search import search_cycles
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -17,7 +17,7 @@ def _parser() -> argparse.ArgumentParser:
         description="Generate and evaluate symbolic two-run Collatz cycle patterns",
     )
     parser.add_argument(
-        "--search-two-run",
+        "--search-cycles",
         required=True,
         type=int,
         metavar="MAX_ODD_STEPS",
@@ -41,8 +41,8 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    report = search_two_run(
-        args.search_two_run,
+    report = search_cycles(
+        args.search_cycles,
         minimum_period=args.minimum_period,
         prime_limit=args.prime_limit,
     )

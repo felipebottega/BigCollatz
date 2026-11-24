@@ -8,7 +8,7 @@ from collatz_algebra.definitive import IneligibleCandidate, verify_exact
 from collatz_algebra.grammar import Concat, Repeat, Step, counts, parse_word
 from collatz_algebra.modular import evaluate_mod
 from collatz_algebra.sieve import analyze, targeted_moduli
-from collatz_algebra.search import boundary_convergents, search_two_run, two_run_word
+from collatz_algebra.search import boundary_convergents, search_cycles, two_run_word
 
 
 def expand(word):
@@ -108,7 +108,7 @@ class SieveTests(unittest.TestCase):
             self.assertEqual(
                 main(
                     [
-                        "--search-two-run",
+                        "--search-cycles",
                         "1000",
                         "--minimum-period",
                         "1",
@@ -134,7 +134,7 @@ class SieveTests(unittest.TestCase):
                 )
 
     def test_search_reports_when_no_candidates_fit_the_ceiling(self):
-        report = search_two_run(1)
+        report = search_cycles(1)
         self.assertEqual(report["candidates"], [])
         self.assertEqual(report["conclusion"], "no_candidates")
 
@@ -150,7 +150,7 @@ class SymbolicSearchTests(unittest.TestCase):
         self.assertEqual(counts(word), (70_000_000_000, 111_000_000_000))
 
     def test_search_rejects_entire_one_cycle_family(self):
-        report = search_two_run(10_000, minimum_period=1, prime_limit=100)
+        report = search_cycles(10_000, minimum_period=1, prime_limit=100)
         self.assertFalse(report["trajectory_terms_computed"])
         self.assertTrue(report["candidates"])
         self.assertTrue(all(item["status"] == "rejected" for item in report["candidates"]))
@@ -190,7 +190,7 @@ class DefinitiveVerificationTests(unittest.TestCase):
             verify_exact(word)
 
     def test_billion_scale_candidates_receive_symbolic_theorem_certificates(self):
-        report = search_two_run(
+        report = search_cycles(
             186_000_000_000,
             minimum_period=186_000_000_000,
             prime_limit=100,
