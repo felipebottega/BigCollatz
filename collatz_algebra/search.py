@@ -90,7 +90,7 @@ def _reject_one_cycle_family(report: dict[str, object], u: int, v: int) -> None:
     report["conclusion"] = "impossible_one_cycle_family"
 
 
-def search_two_run(
+def search_cycles(
     max_odd_steps: int,
     *,
     minimum_period: int = 1,
