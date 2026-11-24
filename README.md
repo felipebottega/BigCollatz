@@ -1,6 +1,6 @@
 # BigCollatz
 
-## Projeto simbólico ativo
+## Symbolic cycle search
 
 The active research path is `collatz-algebra`. It now admits a candidate only
 when the selected path is guaranteed to finish with a definitive answer. A JSON
@@ -40,30 +40,6 @@ modular survivors previously reported at billion-scale periods. See
 [`RESEARCH_SYMBOLIC.md`](RESEARCH_SYMBOLIC.md) for the derivation,
 bibliography, proof boundary, and the required next search space (`m >= 2`).
 
-## Legacy trajectory experiments
-
-BigCollatz runs exact, reproducible experiments on the unaccelerated Collatz map
-for positive integers with **more than 1,000,000 decimal digits**. Its scientific
-objective is to find a
-nontrivial cycle. Trajectory length is retained only as a diagnostic and is not
-the search objective. One step is
-`n / 2` for even `n` and `3n + 1` for odd `n`.
-
-The primary cycle-search path is not limited to a decimal interval. It enumerates
-exponent words for the accelerated map on odd integers, solves each resulting
-closure equation exactly, removes rotational and repeated-word duplicates, and
-replays every integral solution. Search bounds apply to odd period and total
-divisions by two, not to the number of digits in a candidate.
-
-Every trajectory retains no history of visited integers: it advances the current
-integer while keeping the initial integer and a step counter. It stops when it
-returns exactly to its initial integer or reaches `1`, keeping memory use
-independent of trajectory length. Verified cycle candidates are persisted
-separately from the trajectory ranking, so a discovery cannot be discarded for
-missing the top ten. Normal experiments retain aggregate statistics and only
-their ten best completed trajectories rather than raw trajectories or every
-result record.
-
 ## Setup and tests
 
 BigCollatz requires Python 3.11 or newer and has no runtime dependencies.
@@ -72,38 +48,6 @@ BigCollatz requires Python 3.11 or newer and has no runtime dependencies.
 python -m pip install -e .
 python -m unittest discover -v
 ```
-
-## Run an experiment
-
-```bash
-python -m bigcollatz run e001
-python -m bigcollatz run e002 \
-  --strategy S1-parity-prefix-top10 \
-  --seed guided-v1
-```
-
-A run evaluates 4 deterministic guided candidates by default using the S6
-modular-residue strategy, favoring algebraic structure and a small, focused set
-over a broad regular sweep. The uniform S0 strategy remains available as an
-explicit control. Use `--digits N` to select any exact candidate size of at least
-1,000,001 digits. There is no application-level maximum.
-The practical ceiling is available memory and execution time. Use `--count` and
-`python -m bigcollatz run --help` for all options. Guided
-strategies read parent trajectories from committed result files, so they require
-the corresponding source artifact to be present.
-
-For full trajectories with millions of digits, an optional GMP accelerator is
-available in `tools/collatz_gmp.c`. It groups consecutive divisions by two while
-preserving the exact unaccelerated step count, maximum, and return-to-start
-detection:
-
-```bash
-gcc -O3 tools/collatz_gmp.c -lgmp -o collatz-gmp
-./collatz-gmp candidate.txt result.txt
-```
-
-This optional executable requires a C compiler and GMP; the Python package keeps
-its dependency-free runtime.
 
 ## Search cycle equations
 
@@ -126,8 +70,7 @@ divisibility tests reject impossible closure equations before large numerators
 are built.
 
 Consequently, rotations of one cycle and repetitions of a shorter cycle are not
-searched again. No previous long trajectory, decimal suffix, fixed digit count,
-or random starting integer participates in candidate selection. The trivial
+searched again. The trivial
 `1 -> 4 -> 2 -> 1` cycle is excluded unless `--include-trivial` is supplied.
 Progress is atomically checkpointed under `results/<search-id>/checkpoint.json`,
 rerunning the same command resumes it or returns the completed result. Use
@@ -138,24 +81,3 @@ The defaults are intentionally small. The number of positive compositions grows
 combinatorially, so serious searches should increase bounds gradually, measure
 the explored vector count, and distribute shards. No finite bounded search proves
 that a cycle does not exist outside its stated `(k, sum(a_i))` region.
-
-Cycle-equation search is different from trajectory sampling: it enumerates
-possible cycle structures and derives their exact members, so its bounds are
-period and exponent sum rather than starting-number magnitude. The greater-than-
-1,000-digit rule applies to all newly generated trajectory candidates.
-
-The CLI supports the uniform control (`S0`) and the guided strategies `S1`
-through `S6`. Their definitions and data dependencies are documented in
-[`STRATEGIES.md`](STRATEGIES.md). Completed experiments and pilots are recorded
-in [`EXPERIMENTS.md`](EXPERIMENTS.md) and
-[`RESEARCH_LOG.md`](RESEARCH_LOG.md). The current conclusion and next action
-live in [`RESEARCH_STATE.md`](RESEARCH_STATE.md).
-
-Normal runs write `summary.json`, `summary.md`, and `top_10.json` beneath
-`results/<experiment-id>/`, then merge their winners into
-`results/global_top_10.json`. Large integers remain complete decimal strings in
-machine-readable files and are abbreviated only in Markdown tables.
-
-The legacy trajectory runner intentionally has no scheduler, persistent cache,
-database, or worker orchestration, algebraic cycle searches add only deterministic
-sharding and local atomic checkpoints.
