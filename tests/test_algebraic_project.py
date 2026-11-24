@@ -1,9 +1,12 @@
 import json
 import tempfile
 import unittest
+from fractions import Fraction
 from pathlib import Path
+from random import Random
 from unittest.mock import patch
 
+from collatz_algebra.bounds import _farey_neighbors, count_window, run_gap_bound
 from collatz_algebra.cli import main
 from collatz_algebra.definitive import verify_exact
 from collatz_algebra.grammar import Concat, Repeat, Step, counts, parse_word
@@ -131,11 +134,11 @@ class MonteCarloSearchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "report.json"
             self.assertEqual(main([
-                "--search-cycles", "150000000000", "--cases-per-level", "6",
-                "--depth", "3", "--seed", "0", "--output", str(output),
+                "--search-cycles", "5000000000000000000", "--cases-per-level", "6",
+                "--depth", "3", "--seed", "0", "--prime-limit", "5", "--output", str(output),
             ]), 0)
             report = json.loads(output.read_text(encoding="utf-8"))
-        self.assertEqual(report["schema"], "collatz-monte-carlo-search-v2")
+        self.assertEqual(report["schema"], "collatz-monte-carlo-search-v3")
         self.assertEqual([level["evaluated"] for level in report["levels"]], [6, 6, 6])
         self.assertEqual(sum(report["totals"].values()), 18)
         self.assertEqual(report["conclusion"], "all_candidates_rejected")
@@ -148,20 +151,41 @@ class MonteCarloSearchTests(unittest.TestCase):
             runs = [(int(u), d, int(w)) for u, d, w in item["runs"]]
             odd_steps = sum(u + w for u, _, w in runs)
             divisions = sum(u + d*w for u, d, w in runs)
-            self.assertLessEqual(odd_steps, 150_000_000_000)
+            self.assertLessEqual(odd_steps, 5_000_000_000_000_000_000)
             self.assertGreaterEqual(odd_steps + divisions, 186_265_759_595)
             self.assertTrue(all(u > 0 and d >= 2 and w > 0 for u, d, w in runs))
             self.assertEqual(int(item["analysis"]["counts"]["total_divisions"]), divisions)
+            anchor = item["anchor"]
+            valley = int(anchor["odd_member"])
+            prefix = runs[:anchor["prefix_runs"]]
+            term = valley
+            self.assertGreaterEqual(sum(u + w for u, _, w in prefix), 12)
+            for u, d, w in prefix:
+                for exponent in [1] * u + [d] * w:
+                    value = 3 * term + 1
+                    term, remainder = divmod(value, 1 << exponent)
+                    self.assertEqual(remainder, 0)
+                    self.assertEqual(term % 2, 1)
+                    self.assertGreaterEqual(term, 2**71)
+            _, incoming_divisions, incoming_length = runs[-1]
+            predecessor = valley
+            for _ in range(incoming_length):
+                predecessor, remainder = divmod((predecessor << incoming_divisions) - 1, 3)
+                self.assertEqual(remainder, 0)
+                self.assertEqual(predecessor % 2, 1)
             if item["parent_id"] is not None:
                 parent = candidates[item["parent_id"]]
                 self.assertLess(parent["level"], item["level"])
                 self.assertEqual(parent["status"], "rejected")
                 self.assertNotEqual(parent["runs"], item["runs"])
+                self.assertEqual(parent["anchor"], item["anchor"])
+                self.assertEqual(parent["runs"][:anchor["prefix_runs"]], item["runs"][:anchor["prefix_runs"]])
+                self.assertEqual(parent["runs"][-1], item["runs"][-1])
             self.assertEqual(item["status"], "rejected")
             self.assertTrue(item["analysis"]["rejection_certificates"])
             self.assertIn("closure_margin_per_step", item)
         self.assertTrue(any(
-            reason["filter"] == "run_log_gap_bound"
+            reason["filter"] == "valley_congruence_gap_bound"
             for item in candidates.values()
             for reason in item["analysis"]["rejection_certificates"]
         ))
@@ -171,6 +195,8 @@ class MonteCarloSearchTests(unittest.TestCase):
         # The small-prime test misses the closure denominator, which is 7.
         with patch("collatz_algebra.sieve.MINIMUM_NONTRIVIAL_PERIOD", 1), patch(
             "collatz_algebra.search._MINIMUM_CYCLE_MEMBER", 4
+        ), patch("collatz_algebra.search.run_gap_bound", return_value=Fraction(1)), patch(
+            "collatz_algebra.search._valley_gap_bound", return_value=Fraction(1)
         ):
             status, report = _evaluate_pattern((Run(1, 3, 1),), prime_limit=5)
         self.assertEqual(status, "rejected")
@@ -179,21 +205,57 @@ class MonteCarloSearchTests(unittest.TestCase):
 
     def test_reproducible_sampling_in_the_same_seed(self):
         options = dict(cases_per_level=3, depth=2, seed=61, prime_limit=100)
-        report = search_cycles(150_000_000_000, **options)
-        self.assertEqual(report, search_cycles(150_000_000_000, **options))
+        report = search_cycles(5_000_000_000_000_000_000, **options)
+        self.assertEqual(report, search_cycles(5_000_000_000_000_000_000, **options))
         options["seed"] = 62
-        self.assertNotEqual(report["candidates"], search_cycles(150_000_000_000, **options)["candidates"])
+        self.assertNotEqual(report["candidates"], search_cycles(5_000_000_000_000_000_000, **options)["candidates"])
 
     def test_search_reports_when_no_candidates_fit_the_ceiling(self):
         report = search_cycles(72_057_431_990)
         self.assertEqual(report["candidates"], [])
         self.assertEqual(report["conclusion"], "no_candidates")
 
-    def test_search_samples_at_the_minimum_odd_step_ceiling(self):
-        report = search_cycles(72_057_431_991, cases_per_level=1, depth=1)
-        candidate, = report["candidates"]
-        self.assertEqual(candidate["analysis"]["counts"]["odd_steps"], "72057431991")
-        self.assertEqual(candidate["analysis"]["counts"]["unaccelerated_period"], "186265759595")
+    def test_proves_that_the_200_billion_scope_is_excluded(self):
+        report = search_cycles(200_000_000_000)
+        self.assertEqual(report["conclusion"], "scope_excluded")
+        self.assertEqual(report["candidates"], [])
+        proof = report["preflight"]
+        self.assertEqual(proof["farey_upper"], "217976794617/137528045312")
+        self.assertEqual(proof["max_uphill_runs"], 256)
+        self.assertEqual(proof["necessary_uphill_runs"], "3543773083")
+        self.assertGreaterEqual(
+            Fraction(proof["minimum_log_gap_lower_bound"]),
+            Fraction(proof["cycle_log_gap_upper_bound"]),
+        )
+
+    def test_count_window_brackets_and_samples_constrained_pairs(self):
+        ceiling = 5 * 10**18
+        window = count_window(ceiling, 256)
+        self.assertFalse(window.excluded)
+        self.assertGreater(window.lower.denominator + window.upper.denominator, ceiling)
+        self.assertEqual(
+            window.upper.numerator * window.lower.denominator
+            - window.lower.numerator * window.upper.denominator, 1,
+        )
+        rng = Random(4)
+        for _ in range(10):
+            k, divisions = window.sample(rng)
+            self.assertLessEqual(k, ceiling)
+            self.assertGreaterEqual(k, 72_057_431_991)
+            self.assertGreaterEqual(Fraction(divisions, k), window.upper)
+            self.assertLess(window.upper_positive_gap, run_gap_bound(256))
+
+    def test_farey_neighbors_match_small_exhaustive_search(self):
+        value = Fraction(163, 103)
+        for ceiling in (1, 2, 10, 40):
+            fractions = {
+                Fraction((value.numerator * k) // value.denominator + offset, k)
+                for k in range(1, ceiling + 1) for offset in (0, 1)
+            }
+            self.assertEqual(_farey_neighbors(value, ceiling), (
+                max(f for f in fractions if f < value),
+                min(f for f in fractions if f > value),
+            ))
 
 
 class SymbolicSearchTests(unittest.TestCase):

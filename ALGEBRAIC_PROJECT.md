@@ -45,7 +45,7 @@ back at $3367$.
 ### How the search limits relate to a family
 
 ```bash
-python -m collatz_algebra.cli --search-cycles 150000000000 --cases-per-level 24 --depth 3 --seed 0
+python -m collatz_algebra.cli --search-cycles 200000000000 --cases-per-level 24 --depth 3 --seed 0
 ```
 
 Let $k$ be the number of odd steps and $S$ the number of divisions by
@@ -182,39 +182,72 @@ $$
 
 Each uphill run is followed by a downhill run using one division count.
 The sampler chooses from 128 to 256 uphill runs and from two to eight
-divisions per downhill step. These are sampling choices. The report groups
-patterns by the number of uphill runs and their largest downhill division
-count. Each sample keeps a valley between two short runs. Long runs impose
-divisibility conditions that can force the odd term at a valley to be large.
-Patterns with one uphill and one downhill run are already excluded
-by Steiner's theorem.
+divisions per downhill step. The report groups patterns by the number of
+uphill runs and their largest downhill division count.
 
-To sample huge step counts, the program combines the numerator and
-denominator pairs of the two neighboring fractions in the lower-bound
-proof. It chooses positive integer weights that produce a ratio near the
-necessary interval and satisfy the odd-step ceiling. It then divides those
-counts among the runs. This makes the patterns compact even when a run
-contains billions of steps. The sampler explores part of the space of
-possible exponent words.
+### Check the step-count range
 
-### A bound from the number of runs
-
-Suppose a nontrivial cycle has $r$ uphill runs and $r$ downhill runs, and
-every odd member is at least $m=2^{71}$. In an uphill run, values grow by
-a factor of at least $3/2$. Traversed backwards, a downhill run grows by
-at least $5/4$, since $(4y-1)/3\ge 5y/4$ for $y\ge 4$. Geometric series
-bound the sums of reciprocal members contributed by one uphill run and
-one downhill run by $3/m$ and $5/m$, respectively. Consequently,
+Let $r$ be the number of uphill runs and $m=2^{71}$ the lower bound on
+cycle members. Hercher's Corollary 17 gives a necessary bound on the gap
+$G=S\ln 2-k\ln 3$.
 
 $$
-S\ln 2-k\ln 3
-=\sum_i\ln\left(1+\frac{1}{3x_i}\right)
-<\frac{8r}{3m}.
+0<G<\frac{97r}{162m}.
 $$
 
-The program uses rational lower and upper bounds on the logarithms for
-this rejection test. A candidate that survives this test and the modular
-checks goes to exact affine closure.
+The program encloses $\log_2 3$ between consecutive Farey fractions
+$L=p_L/q_L$ and $R=p_R/q_R$ at the chosen odd-step ceiling $M$.
+It verifies the enclosure with rational bounds on the logarithms.
+The neighbors satisfy $p_Rq_L-p_Lq_R=1$ and $q_L+q_R>M$.
+Therefore any $S/k>\log_2 3$ with $k\le M$ is at least $R$. Its
+numerator and denominator have the unique representation
+
+$$
+(S,k)=b(p_R,q_R)-t(p_L,q_L),
+\qquad b\ge 1,\quad t\ge 0.
+$$
+
+Every such pair has gap at least $p_R\ln 2-q_R\ln 3$, since the upper
+fraction has positive gap and the lower fraction has negative gap. If a
+certified lower bound on that minimum meets or exceeds the allowance even
+for 256 runs, the program reports `scope_excluded`. This applies to the
+configured run range. Otherwise the sampler chooses coefficients $b,t$
+consistent with the step ceiling and the gap allowance.
+
+### Build around a valley
+
+For a downhill run of length $w$ with division count $d$, let
+$B=2^d-3$. At the odd term $x$ where the run ends, the inverse updates
+require $Bx\equiv 1\pmod{3^w}$. To start an uphill run, the same term
+must satisfy $x\equiv 3\pmod 4$. The generator combines these conditions
+by the Chinese remainder theorem. It picks an odd representative above the
+verified convergence range and follows at least 12 actual odd-to-odd
+steps, ending at another valley. Then it assigns the remaining steps
+and divisions to the rest of the pattern. Variations preserve the
+checked prefix and the incoming downhill run.
+
+### Reject using local congruences
+
+At each valley, the verifier combines the incoming downhill congruence
+with the integrality condition from up to 128 forward odd steps.
+It may use only a prefix of the incoming divisibility constraint to
+keep the arithmetic small. The least compatible integer at or above $m$
+gives a lower bound $m_i$ on that valley's value.
+
+Along a rising run, values grow by at least $3/2$. Along a falling run
+traversed backwards, values grow by at least $5/4$, since
+$(4y-1)/3\ge 5y/4$ for $y\ge4$. Summing reciprocals of the members on the
+two sides of each valley gives
+
+$$
+G=\sum_j\ln\left(1+\frac{1}{3x_j}\right)
+<\frac{8}{3}\sum_i\frac{1}{m_i}.
+$$
+
+The program compares an exact rational lower bound on $G$ to an
+upwards-rounded bound on the right. If neither this inequality, the
+global run bound, nor the modular checks rejects the pattern, the program
+solves the full affine closure equation.
 
 ### Score and refinement
 
@@ -237,7 +270,9 @@ stays the same.
 The report records the counts by outcome and family, the best-scoring
 candidate at each level, and the parent of each variation. Each entry in
 `runs` lists the uphill length, divisions per downhill step, and downhill
-length in that order. A completed search reports each pattern as rejected or confirmed.
+length in that order. The `anchor` records the starting term and how
+many initial runs were checked at generation. A completed search reports
+each pattern as rejected or confirmed.
 
 ## References
 
@@ -251,7 +286,10 @@ length in that order. A completed search reports each pattern as rejected or con
 - Eliahou, *The 3x+1 problem: new lower bounds on nontrivial cycle lengths*
   (1993). Diophantine approximation of the logarithmic gap. [DOI](https://doi.org/10.1016/0166-218X(93)90152-U)
 - Simons and de Weger, *Theoretical and computational bounds for m-cycles of
-  the 3n+1 problem* (2005). Bounds based on blocks of minima and maxima. [DOI](https://doi.org/10.4064/aa117-1-5)
+  the 3n+1 problem* (2005). Bounds based on blocks of minima and maxima. [DOI](https://doi.org/10.4064/aa117-1-3)
+- Hercher, *There are no Collatz m-Cycles with m ≤ 91* (2023).
+  The search uses Corollary 17. [Paper](https://arxiv.org/abs/2201.00406) ·
+  [Formalization of Corollary 17](https://github.com/PhilNorfleet/Hercher2023_lean/blob/HEAD/Collatz/Bridge.lean)
 - Wirsching, *The Dynamical System Generated by the 3n+1 Function* (1998).
   Parity words and their 2-adic interpretation. [DOI](https://doi.org/10.1007/BFb0095985)
 - Kontorovich and Lagarias, *Stochastic models for the 3x+1 and 5x+1
