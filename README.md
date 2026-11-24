@@ -1,5 +1,26 @@
 # BigCollatz
 
+## Lower bound for a nontrivial cycle
+
+Any nontrivial positive Collatz cycle must contain **at least 72,057,431,991
+odd steps** and have an **unaccelerated period of at least 186,265,759,595
+steps**. The unaccelerated period counts both the odd operations `3n+1` and
+the divisions by 2. These bounds are derived from convergence verification
+below `2^71`. [Barina, *Improved verification limit for the convergence of
+the Collatz conjecture* (2025)](https://doi.org/10.1007/s11227-025-07337-0).
+
+To see how the verification gives a cycle bound, let `k` count odd steps
+and `S` count divisions by 2. Each odd member `n` of a nontrivial cycle is
+at least `2^71`. Multiplying the odd-to-odd updates around the cycle gives
+`2^S = product(3 + 1/n)`, so
+`log2(3) < S/k < log2(3) + 1/(3 * 2^71 * ln(2))`.
+This interval lies strictly between the fractions
+`103768467013/65470613321` and `10439860591/6586818670`.
+Their cross products differ by one, so any fraction strictly between them
+has numerator and denominator at least the respective sums. Thus
+`S >= 114,208,327,604`, `k >= 72,057,431,991`, and the period `S + k`
+has the lower bound above.
+
 ## Symbolic cycle search
 
 The active research path is `collatz-algebra`. It now admits a candidate only
@@ -26,19 +47,18 @@ For eligible JSON words, status `0` means a confirmed cycle and status `1` means
 an exact rejection. `--exact-work-limit` configures the admission bound; both the
 odd-step count and total divisions must fit it.
 
-Search the first implemented representation family directly:
+Run the symbolic two-run search with a ceiling of 200 billion odd steps and
+the lower bound above on the unaccelerated period:
 
 ```bash
-python -m collatz_algebra.cli --search-two-run 1000000 --minimum-period 1
+python -m collatz_algebra.cli --search-two-run 200000000000 --minimum-period 186265759595
 ```
 
-The search uses continued-fraction proposals near the algebraic positivity
-boundary. Every proposed `1^u 2^v` word is rejected definitively by
-Steiner's one-cycle theorem: the single increasing run followed by a single
-decreasing run cannot be a nontrivial positive cycle. This closes the vacuous
-modular survivors previously reported at billion-scale periods. See
-[`RESEARCH_SYMBOLIC.md`](RESEARCH_SYMBOLIC.md) for the derivation,
-bibliography, proof boundary, and the required next search space (`m >= 2`).
+The command proposes a small set of `1^u 2^v` patterns using continued
+fractions. It displays proposals below the period bound as rejections.
+Steiner's one-cycle theorem excludes the entire family of patterns with
+one increasing run and one decreasing run, including those above the bound.
+See [the proof and next research directions](RESEARCH_SYMBOLIC.md).
 
 ## Setup and tests
 
@@ -49,12 +69,15 @@ python -m pip install -e .
 python -m unittest discover -v
 ```
 
-## Search cycle equations
+## Validate the exact cycle-equation search
+
+Use the known cycle `1 -> 4 -> 2 -> 1` as a positive control:
 
 ```bash
-python -m bigcollatz search-cycles c001-k20-s40 \
-  --max-odd-period 20 \
-  --max-total-divisions 40
+python -m bigcollatz search-cycles trivial-check \
+  --max-odd-period 1 \
+  --max-total-divisions 2 \
+  --include-trivial
 ```
 
 The search enumerates positive exponent vectors `(a_0, ..., a_{k-1})` for
@@ -77,7 +100,6 @@ rerunning the same command resumes it or returns the completed result. Use
 `--shard-count N --shard-index I` to split the deterministic enumeration among
 independent processes or machines. Each shard needs a distinct search ID.
 
-The defaults are intentionally small. The number of positive compositions grows
-combinatorially, so serious searches should increase bounds gradually, measure
-the explored vector count, and distribute shards. No finite bounded search proves
-that a cycle does not exist outside its stated `(k, sum(a_i))` region.
+The enumerator is practical for small validation ranges. The number of
+positive compositions grows combinatorially, which makes direct enumeration
+at the lower bound for nontrivial cycles impractical.
