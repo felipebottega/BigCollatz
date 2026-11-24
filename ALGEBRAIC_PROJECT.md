@@ -1,97 +1,174 @@
 # Algebraic Collatz model
 
-BigCollatz studies positive Collatz cycles by representing their odd-to-odd
-steps as exponent words. The public search excludes a structured family
-symbolically. The internal exact verifier checks bounded words.
+BigCollatz studies cycle patterns by recording the number of divisions by
+two between successive odd terms.
+
+## What is a family?
+
+Apply $3x+1$ to an odd number $x$, then divide by two until the result is
+odd. An entry in the pattern records how many divisions this takes. A
+family is a template for arranging those entries. Choosing the lengths
+of its blocks gives one candidate pattern.
+
+For example, consider the family
+
+$$
+\mathcal{F}=\{\,1^u 2^w 1^v 3^z \mid u,w,v,z\in\mathbb{Z}_{>0}\,\}.
+$$
+
+Here $2^w$ means $w$ consecutive entries of value $2$. In this notation,
+the superscript counts repetitions of an entry. A member with two entries
+in the first block, one in the second, one in the third, and two in the
+fourth is
+
+$$
+1^2 2^1 1^1 3^2 \;\longleftrightarrow\; (1,1,2,1,3,3).
+$$
+
+For odd values greater than one, one division gives an uphill step and
+two or more divisions give a downhill step. The template above has two
+uphill runs and two downhill runs.
+
+### How the command bounds relate to a family
+
+```bash
+python -m collatz_algebra.cli --search-cycles 150000000000 --minimum-period 186265759595
+```
+
+Let $k$ be the number of odd steps and $S$ the number of divisions by
+two. Each entry contributes one odd step and as many divisions as its
+value. For the four-block example:
+
+$$
+\begin{aligned}
+k &= u+w+v+z,\\
+S &= u+2w+v+3z,\\
+k+S &= 2u+3w+2v+4z.
+\end{aligned}
+$$
+
+The value of `--search-cycles` caps $k$ for each candidate. The value of
+`--minimum-period` sets the lower bound on $k+S$ for the length check.
+If the four-block family were searched with the command above, a pattern
+within the ceiling and passing the length check would satisfy
+
+$$
+\begin{aligned}
+u+w+v+z &\le 150{,}000{,}000{,}000,\\
+2u+3w+2v+4z &\ge 186{,}265{,}759{,}595.
+\end{aligned}
+$$
+
+The four-block family illustrates the counting. The command searches only
+the [two-run family](#symbolic-two-run-family). The odd-step ceiling limits
+which proposals are generated. The period bound is checked after generation.
 
 ## Cycle equation
 
-For a positive odd integer `x_i`, one accelerated step is
+For an odd term $x_i$, let $a_i=\nu_2(3x_i+1)$ be the number of factors
+of two in $3x_i+1$. The next odd term is
 
-```text
-x_(i+1) = (3*x_i + 1) / 2^a_i,    a_i = v2(3*x_i + 1).
-```
+$$
+x_{i+1}=\frac{3x_i+1}{2^{a_i}}.
+$$
 
-For a word of `k` exponents, let `S = sum(a_i)`. Composing the steps gives
-the Böhm–Sontacchi equation
+For the word $\mathbf{a}=(a_0,\ldots,a_{k-1})$, the total number of
+divisions is $S=\sum_{i=0}^{k-1}a_i$. Composing the steps gives
+the Böhm–Sontacchi equation:
 
-```text
-T_word(x) = (3^k*x + A) / 2^S
-A         = sum over j=0,...,k-1 of 3^(k-1-j) * 2^(a_0+...+a_(j-1))
-(2^S - 3^k)*x = A    at closure.
-```
+$$
+\begin{aligned}
+T_{\mathbf{a}}(x)&=\frac{3^k x+A}{2^S},\\
+A&=\sum_{j=0}^{k-1}3^{k-1-j}\,2^{\sum_{i=0}^{j-1}a_i}.
+\end{aligned}
+$$
 
-The exponent in the first summand is zero. The unaccelerated period is
-`k + S`, and a positive solution requires `2^S > 3^k`.
+The inner sum for $j=0$ is zero. At closure, $T_{\mathbf{a}}(x)=x$, so
+
+$$
+(2^S-3^k)x=A.
+$$
+
+Since $A$ is positive, a positive solution requires $2^S>3^k$.
 
 ## Lower bound for a nontrivial cycle
 
-Barina's verification below `2^71` provides a lower bound on the members of
-a nontrivial cycle. Let `k` count odd steps
-and `S` count divisions by 2. Each odd member `n` of a nontrivial cycle is
-at least `2^71`. Multiplying the odd-to-odd updates around the cycle gives
-`2^S = product(3 + 1/n)`, so
-`log2(3) < S/k < log2(3) + 1/(3 * 2^71 * ln(2))`.
-This interval lies strictly between the fractions
-`103768467013/65470613321` and `10439860591/6586818670`.
-Their cross products differ by one, so any fraction strictly between them
-has numerator and denominator at least the respective sums. Thus
-`S >= 114,208,327,604`, `k >= 72,057,431,991`, and the period `S + k`
-is at least 186,265,759,595.
+Every odd member $x_i$ of a nontrivial cycle must be at least $2^{71}$.
+Otherwise its orbit would reach one by the convergence verification below
+that threshold. [Barina's verification (2025)](https://doi.org/10.1007/s11227-025-07337-0)
+
+Multiplying the odd-to-odd updates around the cycle gives
+
+$$
+2^S=\prod_{i=0}^{k-1}\left(3+\frac{1}{x_i}\right).
+$$
+
+Taking logarithms and using $\ln(1+t)<t$ for $t>0$ gives
+
+$$
+\log_2 3<\frac{S}{k}<\log_2 3+\frac{1}{3\cdot 2^{71}\ln 2}.
+$$
+
+This interval lies strictly between
+
+$$
+\frac{103768467013}{65470613321}
+\qquad\text{and}\qquad
+\frac{10439860591}{6586818670}.
+$$
+
+The cross products of these fractions differ by one, so any fraction
+strictly between them has numerator and denominator at least the respective
+sums. Therefore
+
+$$
+S\ge114{,}208{,}327{,}604,\qquad
+k\ge72{,}057{,}431{,}991,\qquad
+S+k\ge186{,}265{,}759{,}595.
+$$
 
 ## Compressed words and exact verification
 
-Words are JSON trees built from steps, concatenations, and repetitions:
-
-```json
-{"step": 2}
-```
-
-```json
-{"concat": [{"step": 1}, {"step": 2}]}
-```
-
-```json
-{"repeat": {"word": {"step": 2}, "times": "186000000000"}}
-```
-
-Large repetition counts can be encoded as decimal strings to preserve precision
-across JSON implementations. The internal exact verifier computes `k` and `S` from the tree.
-If either exceeds the exact-work limit, it raises `IneligibleCandidate`
-before expanding the word. Otherwise it constructs the exact closure equation, checks
-that it has a positive odd integer solution, and replays the odd-to-odd steps.
-Confirmation requires every local valuation to match the word and the final
-member to equal the initial member.
+The internal verifier stores words as steps, concatenations, and
+repetitions. A repeated block can be counted without expanding it.
+For exact verification, both $k$ and $S$ must fit the configured work
+limit. The verifier solves the closure equation for a positive odd integer,
+then checks that each step has the specified number of divisions and
+that the final member equals the starting member. Exact verification
+constructs integers whose bit length grows with $S$.
 
 ## Modular certificates
 
-Affine composition combines the triples `(3^k, A, 2^S)` of concatenated
-words. Binary exponentiation evaluates a repeated subword with `r` copies
-using `O(log r)` modular compositions. This permits computing residues of
-the closure equation without constructing its full coefficients.
+The symbolic search combines the coefficients of consecutive blocks.
+A block repeated $r$ times can be evaluated modulo a small integer using
+$O(\log r)$ compositions. For a modulus $m$, an integer solution requires
 
-For a modulus `m`, an integer solution requires
-`gcd(2^S - 3^k, m)` to divide `A`. Failure proves that the word cannot close.
-Passing the check leaves full divisibility and the local valuations open.
-The logarithmic gap `S*ln(2) - k*ln(3)` is a diagnostic computed with
-finite-precision arithmetic.
+$$
+\gcd(2^S-3^k,m)\mid A.
+$$
+
+A failed check rules out the word. Passing leaves full divisibility and the
+step-by-step counts open. The gap $S\ln 2-k\ln 3$ is a finite-precision
+diagnostic.
 
 ## Symbolic two-run family
 
-The word `1^u 2^v` has `k = u + v` and `S = u + 2v`, with `u,v > 0`.
-Upper convergents of the continued fraction for `log2(3)` propose pairs
-`(k,S)` near the positivity boundary. The convergents select patterns.
-The period bound and modular certificates supply independent rejection
-conditions, and Steiner's theorem decides the whole family.
+The command proposes words of the form $1^u2^w$, with positive block lengths.
+For this family,
 
-For odd members greater than `1`, exponent `1` gives a strict increase and
-exponent `2` gives a strict decrease. A word with one run of each has one
-local minimum, so Steiner's theorem excludes it as a nontrivial positive
-cycle. The trivial cycle has the exponent word `[2]`. Cycles with two or
-more local minima lie outside the two-run family's scope.
+$$
+k=u+w,\qquad S=u+2w,\qquad k+S=2u+3w.
+$$
 
-Exact word verification constructs integers whose bit length grows with
-`S`. This limits the exact verifier to bounded workloads.
+The program uses upper continued-fraction convergents of $\log_2 3$ to
+select pairs $(k,S)$ near the boundary $2^S>3^k$. It keeps proposals with
+$k<S<2k$ and $k$ within the odd-step ceiling. The length check and modular
+certificates can give reasons to reject individual proposals.
+
+The word has one uphill run and one downhill run for odd terms greater
+than one. Steiner's theorem excludes any nontrivial positive cycle with
+this shape. The known cycle $1\to4\to2\to1$ has the single-entry word $(2)$.
+Cycles with more uphill and downhill runs lie outside the command's scope.
 
 ## References
 
