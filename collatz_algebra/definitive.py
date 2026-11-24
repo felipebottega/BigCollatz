@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from .binary_interval import isolate_candidate
 from .closure_interval import noninteger_closure
-from .exact_affine import closure_denominator, evaluate_exact_affine
+from .modular_closure import DEFAULT_MODULUS_BITS, closure_certificate
 from .grammar import Repeat, Word, counts
 
 
-def verify_exact(word: Word) -> dict[str, object]:
-    """Decide closure with a certified interval or exact affine division.
+def verify_exact(
+    word: Word, *, modulus_bits: int = DEFAULT_MODULUS_BITS, checkpoint_dir: Path | None = None
+) -> dict[str, object]:
+    """Decide closure by interval isolation and an exact modular proof.
 
     Divisibility by the full power of two implies divisibility at each
     prefix because the remaining multiplier is odd. Each intermediate
@@ -23,7 +28,7 @@ def verify_exact(word: Word) -> dict[str, object]:
         word = word.word
     result = {
         "schema": "collatz-algebra-definitive-v2",
-        "method": "exact_compressed_affine_closure",
+        "method": "exact_modular_closure",
         "counts": {
             "odd_steps": str(odd_steps),
             "total_divisions": str(total_divisions),
@@ -43,24 +48,30 @@ def verify_exact(word: Word) -> dict[str, object]:
             "closure_interval": interval,
         }
 
-    coefficients = evaluate_exact_affine(word)
-    denominator = closure_denominator(coefficients)
-    if denominator <= 0:
+    candidate = isolate_candidate(word, counts(word)[1])
+    if candidate.start is None:
         return {
-            **result, "is_cycle": False, "conclusion": "not_a_cycle",
-            "reason": "nonpositive_closure_denominator",
+            **result, "method": "directed_binary_interval", "is_cycle": False,
+            "conclusion": "not_a_cycle", "reason": candidate.reason,
         }
-    start, remainder = divmod(coefficients.additive, denominator)
-    if remainder:
+
+    start = candidate.start
+    proof = closure_certificate(
+        word, start, candidate.residual_bits, modulus_bits=modulus_bits,
+        checkpoint_dir=checkpoint_dir,
+    )
+    try:
+        starting_integer = str(start)
+    except ValueError:
+        starting_integer = hex(start)
+    result["modular_certificate"] = {
+        **proof, "candidate": starting_integer, "isolation_precision": candidate.precision,
+    }
+    if proof["nonzero_witness"] is not None:
         return {
             **result, "is_cycle": False, "conclusion": "not_a_cycle",
             "reason": "nonintegral_closure",
         }
-    try:
-        starting_integer = str(start)
-    except ValueError:
-        # Python can limit decimal conversion of large integers.
-        starting_integer = hex(start)
     return {
         **result,
         "is_cycle": True,

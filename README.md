@@ -20,7 +20,7 @@ increases belong to the same uphill stretch.
    a valley. Others are sampled without a fixed starting stretch.
 3. **Check each pattern.** The program uses small remainders and bounds on
    the values at the valleys to rule out patterns that cannot close. When
-   those checks cannot decide, it solves the full equation exactly.
+   those checks cannot decide, it tests the full equation in pieces using remainders.
 4. **Refine the search.** The program scores each pattern and tries
    variations of the best ones at the next level. It also saves some of
    each level for fresh patterns.
@@ -42,13 +42,16 @@ From the project directory, with Python 3.11 or newer:
 
 ```bash
 python -m collatz_algebra.cli --search-cycles 200000000000 \
-  --cases-per-level 24 --depth 3 --seed 0 --output search.json
+  --cases-per-level 24 --depth 3 --seed 0 \
+  --checkpoint-dir search-checkpoints --output search.json
 ```
 
 - `--search-cycles` sets the maximum number of odd steps per pattern.
 - `--cases-per-level` sets how many distinct patterns to check at each level.
 - `--depth` sets the number of levels.
 - `--seed` lets you reproduce a search or try a different sample.
+- `--checkpoint-dir` saves progress on modular proofs. Rerun the same
+  command with the same settings to resume those checks.
 
 At 200 billion, the mathematical bound requires at least 3,543,773,083
 ups and an equal number of downs. The sampler can work at that scale.
@@ -57,9 +60,13 @@ With `--independent-runs`, it samples the steps individually so the divisions
 can vary even within one downhill stretch. That can take much more memory.
 
 Look at `totals` and `levels` in the JSON report. A completed search gives
-each candidate a score and an exact decision. The verifier uses exact
-integers with no fixed step cutoff. Solving the full equation can take
-substantial memory and time. Install the optional GMP backend for large
-integer calculations with `python -m pip install '.[large]'`.
+each candidate a score and an exact decision. One nonzero remainder
+rules out a proposed starting value. A cycle is confirmed only when the
+zero remainders prove the equation holds exactly. The verifier avoids
+building the giant coefficients or multiplying all the moduli together.
+Confirmation can still require many checks. An interruption leaves the
+current candidate undecided.
 
-Run the tests with `python -m unittest discover -v`.
+Run the tests with `python -m unittest discover -v`. Install the optional
+GMP/MPFR dependency with `python -m pip install '.[large]'` to include the
+independent giant-word audit.

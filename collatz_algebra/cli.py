@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from .modular_closure import DEFAULT_MODULUS_BITS
 from .search import DEFAULT_CASES_PER_LEVEL, DEFAULT_DEPTH, search_cycles
 from .sieve import DEFAULT_PRIME_LIMIT
 
@@ -43,6 +44,14 @@ def _parser() -> argparse.ArgumentParser:
         default=DEFAULT_PRIME_LIMIT,
         help="scan primes through this value for divisors of the closure coefficient",
     )
+    parser.add_argument(
+        "--modulus-bits", type=int, default=DEFAULT_MODULUS_BITS,
+        help="target size of each prime-power modulus in the exact closure proof",
+    )
+    parser.add_argument(
+        "--checkpoint-dir", type=Path,
+        help="save modular proof progress and resume it when rerunning the same search",
+    )
     parser.add_argument("--output", type=Path, help="write JSON report to this file")
     return parser
 
@@ -58,9 +67,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed=args.seed,
             prime_limit=args.prime_limit,
             independent_runs=args.independent_runs,
+            modulus_bits=args.modulus_bits,
+            checkpoint_dir=args.checkpoint_dir,
         )
     except ValueError as error:
         parser.error(str(error))
+    except KeyboardInterrupt:
+        print("Search interrupted before a complete report was produced.", file=sys.stderr)
+        return 130
+    except OSError as error:
+        print(f"Could not access modular checkpoint: {error}", file=sys.stderr)
+        return 1
     except (MemoryError, OverflowError):
         print(
             "Exact search could not finish within this process's arithmetic or memory capacity.",

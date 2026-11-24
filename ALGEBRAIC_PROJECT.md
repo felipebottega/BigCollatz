@@ -143,9 +143,9 @@ $$
 ## Compressed words and exact verification
 
 The verifier combines blocks by affine composition and computes repeated
-blocks by binary exponentiation. It uses exact integer coefficients to
-decide whether $D=2^S-3^k$ is positive and divides $A$. If so, $x=A/D$ is a
-positive odd integer because $D$ and $A$ are odd.
+blocks by binary exponentiation. It proves whether $D=2^S-3^k$ is positive
+and divides $A$. If so, $x=A/D$ is a positive odd integer because $D$ and
+$A$ are odd.
 
 The divisibility check also proves that the intermediate steps are valid.
 For any prefix with $S_j$ divisions, let $B_j$ be its affine numerator at
@@ -158,10 +158,8 @@ division count is exact. The verifier can prove closure without replaying
 the trajectory. If the entire word repeats an affine map with positive multiplier, its
 fixed points equal those of the base map. The verifier can therefore
 decide a whole-word repetition from its base, keeping the original
-step counts in the result. For other words it balances concatenations
-and stores the denominator as the shift count $S$ during composition.
-The exact coefficients can still grow with $S$. The optional GMP backend
-uses the same integer operations and verdict criteria.
+step counts in the result. The closure proof uses directed intervals and
+exact modular arithmetic on the compressed word.
 
 ### Exact rejection by interval
 
@@ -170,8 +168,11 @@ integer coefficients. It encloses the normalized map
 $T(x)=\lambda x+\beta$ using directed rounding. When the bounds prove
 $\lambda<1$, it encloses the unique solution $\beta/(1-\lambda)$.
 An interval strictly between consecutive integers excludes any integer
-solution. If the interval is inconclusive, the verifier uses exact
-integer composition and division.
+solution. If the fast decimal enclosure is inconclusive, the verifier
+refines a directed binary enclosure. It stores binary exponents
+separately from significands so extreme affine scales do not force large
+integer coefficients. It refines until it can reject or isolate the only
+possible positive odd starting value.
 
 The giant-word audit exercises a primitive word with $137{,}528{,}045{,}312$
 odd steps. It passes the screening filters. The verifier places its
@@ -179,6 +180,43 @@ fixed point between consecutive integers, and a separate GMP/MPFR
 calculation checks that the two integers give opposite signs in the
 closure equation. Run both checks after installing the optional
 dependency with `python -m unittest tests.test_giant_certificate -v`.
+
+### Prove exact closure in pieces
+
+Let $I$ be a certified interval for $A/D$ that contains exactly one positive
+odd integer $x$, and let $w$ be an upper bound on its width. The residual is
+
+$$
+R=A-Dx,\qquad |R|\le Dw<2^S w
+$$
+
+when $w>0$. A zero-width interval containing $x$ already implies $R=0$.
+The verifier derives an integer $b$ with $|R|<2^b$, then evaluates $R$
+modulo successive powers of distinct primes. The compressed affine
+composition computes each residue exactly. A nonzero residue rules out
+the sole candidate $x$.
+
+For zero residues, the moduli $m_i$ are pairwise coprime, so their product
+divides $R$. The verifier tracks the lower bound
+
+$$
+B=\sum_i\lfloor\log_2 m_i\rfloor,
+\qquad \prod_i m_i \ge 2^B.
+$$
+
+As soon as $B\ge b$, the only divisible integer in the residual bound
+is zero. The proof needs neither the full residual nor the modulus
+product in memory. The report records the candidate, the bound, the
+number of zero checks, the last prime, and any nonzero witness.
+`--modulus-bits` controls the target size of the prime powers.
+A base prime itself is the smallest possible modulus.
+
+With `--checkpoint-dir`, the verifier atomically saves local proof
+state every 128 zero checks and at a decision. Rerunning the same search
+regenerates its candidates and resumes each saved modular proof. Treat
+this directory as trusted local execution state. To revalidate a proof
+from scratch, rerun with no checkpoint directory. The modulus schedule
+is deterministic for a given word, residue bound, and modulus size.
 
 ## Modular certificates
 
@@ -296,7 +334,7 @@ $$
 The program compares an exact rational lower bound on $G$ to an
 upwards-rounded bound on the right. If neither this inequality, the
 global run bound, nor the modular checks rejects the pattern, the program
-solves the full affine closure equation.
+checks the full affine closure equation by the exact modular proof.
 
 ### Score and refinement
 
