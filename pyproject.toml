@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "bigcollatz"
 version = "0.1.0"
-description = "Compressed algebraic sieves and reproducible Collatz experiments"
+description = "Symbolic and exact algebraic searches for Collatz cycles"
 requires-python = ">=3.11"
 
 [project.scripts]
