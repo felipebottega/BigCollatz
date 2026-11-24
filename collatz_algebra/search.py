@@ -124,7 +124,7 @@ def search_two_run(
                     "one_run": str(2 * odd_steps - total_divisions),
                     "two_run": str(total_divisions - odd_steps),
                 },
-                "status": "rejected" if report["rejected"] else "symbolic_candidate",
+                "status": "rejected",
                 "analysis": report,
             }
         )
@@ -135,5 +135,6 @@ def search_two_run(
         "coverage_is_exhaustive": False,
         "family_eliminated_by": "Steiner one-cycle theorem (1977)",
         "trajectory_terms_computed": False,
+        "conclusion": "all_candidates_rejected" if candidates else "no_candidates",
         "candidates": candidates,
     }

@@ -1,8 +1,8 @@
 # BigCollatz
 
 BigCollatz investigates positive Collatz cycles using algebraic equations.
-It verifies individual cycle patterns, analyzes a symbolic family, and
-enumerates cycle equations within explicit bounds.
+The symbolic search generates two-run patterns and evaluates them in the
+same execution.
 
 ## Lower bound for a nontrivial cycle
 
@@ -27,23 +27,23 @@ has the lower bound above.
 
 ## Symbolic cycle search
 
-`collatz-algebra` verifies exponent patterns given as compressed JSON words.
-Exact verification requires both the odd-step count and the number of
-divisions by 2 to fit a configurable work bound. The symbolic search uses a
-theorem to decide the two-run family. See [the algebraic
-model](ALGEBRAIC_PROJECT.md) for the proof and scope of each method.
+`collatz-algebra` generates candidates and evaluates every candidate in the
+same run.
 
-Ask whether the included billion-scale example is eligible for exact checking:
+A run is a stretch of consecutive increases or decreases between odd terms.
+To get from one odd term to the next, apply `3n+1` and divide by 2 until the
+result is odd. For example, the odd terms `27 → 41 → 31 → 47 → 71` rise,
+fall, then rise twice. The fall separates two rising runs, and the last two
+increases belong to the same run.
 
-```bash
-python -m collatz_algebra.cli examples/billion_period_word.json
-```
-
-The example exceeds the default work bound. The command emits `not_tested`
-and exits with status `2` before expanding its repetitions.
-For eligible JSON words, status `0` means a confirmed cycle and status `1` means
-an exact rejection. `--exact-work-limit` configures the admission bound; both the
-odd-step count and total divisions must fit it.
+In a cycle, runs are counted around the entire loop, including the return
+to the starting term. A two-run cycle would rise from its minimum to its
+maximum and then fall back to its minimum. The search covers patterns that
+divide by 2 once per rising step and twice per falling step, with at least
+one step in each run. Steiner's theorem excludes nontrivial positive cycles
+with one rising run and one falling run. A search for a nontrivial cycle
+therefore needs to consider patterns with at least two rising runs and two
+falling runs.
 
 Run the symbolic two-run search with a ceiling of 150 billion odd steps
 and the lower bound on the unaccelerated period:
@@ -78,6 +78,10 @@ python -m collatz_algebra.cli --search-two-run 150000000000 --minimum-period 186
 
 Each retained convergent gives one candidate pattern. Raising the ceiling
 adds candidates only when more convergents satisfy the selection rules.
+The JSON report records the checks for each candidate. Its `conclusion` is
+`all_candidates_rejected` when every generated pattern is ruled out, or
+`no_candidates` when the bounds yield no proposals. Exit code `0` indicates
+that the report was produced successfully.
 See [the symbolic analysis](ALGEBRAIC_PROJECT.md#symbolic-two-run-family).
 
 ## Setup and tests
@@ -88,33 +92,3 @@ BigCollatz requires Python 3.11 or newer and has no runtime dependencies.
 python -m pip install -e .
 python -m unittest discover -v
 ```
-
-## Validate the exact cycle-equation search
-
-Use the known cycle `1 -> 4 -> 2 -> 1` as a positive control:
-
-```bash
-python -m bigcollatz search-cycles trivial-check \
-  --max-odd-period 1 \
-  --max-total-divisions 2 \
-  --include-trivial
-```
-
-The search enumerates positive exponent vectors `(a_0, ..., a_{k-1})` for
-`T(n) = (3n + 1) / 2**v2(3n + 1)`. Composition gives the exact candidate
-`n = A / (2**sum(a_i) - 3**k)`.
-
-A sum-constrained necklace recursion enumerates primitive exponent words
-using their lexicographically least rotation. The enumerator starts at the
-positivity boundary `2**S > 3**k` and uses small-prime divisibility tests
-to reject impossible closure equations before constructing large numerators.
-
-Use `--include-trivial` to include the cycle `1 -> 4 -> 2 -> 1`.
-Progress is atomically checkpointed under `results/<search-id>/checkpoint.json`,
-rerunning the same command resumes it or returns the completed result. Use
-`--shard-count N --shard-index I` to split the deterministic enumeration among
-independent processes or machines. Each shard needs a distinct search ID.
-
-The enumerator is practical for small validation ranges. The number of
-positive compositions grows combinatorially, which makes direct enumeration
-at the lower bound for nontrivial cycles impractical.
