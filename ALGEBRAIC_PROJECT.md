@@ -155,7 +155,13 @@ implies $2^{S_j}\mid B_j$. Thus all intermediate results are integers.
 Each intermediate value is odd because its next update has an even
 numerator. The final value equals the initial odd value, so every listed
 division count is exact. The verifier can prove closure without replaying
-the trajectory. The size of the exact coefficients can still grow with $S$.
+the trajectory. If the entire word repeats an affine map with positive multiplier, its
+fixed points equal those of the base map. The verifier can therefore
+decide a whole-word repetition from its base, keeping the original
+step counts in the result. For other words it balances concatenations
+and stores the denominator as the shift count $S$ during composition.
+The exact coefficients can still grow with $S$. The optional GMP backend
+uses the same integer operations and verdict criteria.
 
 ## Modular certificates
 
@@ -180,10 +186,13 @@ $$
 \qquad u_i,w_i>0,\quad d_i\ge2.
 $$
 
-Each uphill run is followed by a downhill run using one division count.
-The sampler chooses from 128 to 256 uphill runs and from two to eight
-divisions per downhill step. The report groups patterns by the number of
-uphill runs and their largest downhill division count.
+Each uphill run is followed by a downhill run, which can contain blocks
+with different division counts.
+The sampler chooses the run count from the necessary lower bound and the
+available number of steps. Each uphill run needs at least one odd step,
+and the downhill run that follows needs at least one more. Thus a pattern
+with $k$ odd steps has at most $\lfloor k/2\rfloor$ uphill runs. The report
+groups patterns by their uphill run count and largest downhill exponent.
 
 ### Check the step-count range
 
@@ -210,9 +219,10 @@ $$
 Every such pair has gap at least $p_R\ln 2-q_R\ln 3$, since the upper
 fraction has positive gap and the lower fraction has negative gap. If a
 certified lower bound on that minimum meets or exceeds the allowance even
-for 256 runs, the program reports `scope_excluded`. This applies to the
-configured run range. Otherwise the sampler chooses coefficients $b,t$
-consistent with the step ceiling and the gap allowance.
+for $\lfloor M/2\rfloor$ runs, the program reports `scope_excluded`.
+Otherwise it samples coefficients $b,t$ subject to the odd-step ceiling
+and the gap allowance. At $M=200{,}000{,}000{,}000$, the certified minimum
+gap implies at least $3{,}543{,}773{,}083$ uphill runs.
 
 ### Build around a valley
 
@@ -224,7 +234,29 @@ by the Chinese remainder theorem. It picks an odd representative above the
 verified convergence range and follows at least 12 actual odd-to-odd
 steps, ending at another valley. Then it assigns the remaining steps
 and divisions to the rest of the pattern. Variations preserve the
-checked prefix and the incoming downhill run.
+checked prefix and the incoming downhill run. Some proposals have no
+anchor, so this construction does not constrain the entire search.
+
+### Represent large run counts
+
+The default sampler stores high run counts as repeated motifs made of
+short runs. It varies the length and order of the motif groups and
+preserves the valley anchor. The exact and modular affine evaluators
+compose the repeated blocks directly. The `--independent-runs` option
+samples individual step exponents without an anchor. After choosing the
+number of rising and falling steps, it distributes the steps among the runs
+and distributes the extra divisions among all falling steps. This gives
+arbitrary downhill exponents and changes of exponent within a run.
+
+For a repeated motif of $p$ odd steps and $q$ divisions, each phase from
+one copy to the next obeys an affine map with multiplier $3^p/2^q$.
+If $3^p>2^q$, the phase values grow geometrically. If $3^p<2^q$, they grow
+geometrically backwards once the additive coefficient is sufficiently
+small relative to the minimum cycle member. The reciprocal sum of each
+phase can then be bounded by a geometric series independently of the
+number of copies. The program uses that bound to reject repeated
+patterns when it proves the gap is too large. Remaining candidates
+still go to exact affine closure.
 
 ### Reject using local congruences
 
@@ -270,7 +302,10 @@ stays the same.
 The report records the counts by outcome and family, the best-scoring
 candidate at each level, and the parent of each variation. Each entry in
 `runs` lists the uphill length, divisions per downhill step, and downhill
-length in that order. The `anchor` records the starting term and how
+length in that order. A fourth entry, when present, lists additional
+downhill blocks as exponent and length pairs. The `packed_runs` groups are inserted immediately
+after the anchor's prefix. Each group has a `copies` field and a list of
+runs that form one copy. The `anchor` records the starting term and how
 many initial runs were checked at generation. A completed search reports
 each pattern as rejected or confirmed.
 

@@ -9,11 +9,13 @@ from unittest.mock import patch
 from collatz_algebra.bounds import _farey_neighbors, count_window, run_gap_bound
 from collatz_algebra.cli import main
 from collatz_algebra.definitive import verify_exact
+from collatz_algebra.exact_affine import evaluate_exact_affine
 from collatz_algebra.grammar import Concat, Repeat, Step, counts, parse_word
 from collatz_algebra.modular import evaluate_mod
 from collatz_algebra.sieve import analyze, targeted_moduli
 from collatz_algebra.search import (
-    Run, _evaluate_pattern, boundary_convergents, search_cycles, two_run_word,
+    AnchoredPattern, Run, _evaluate_pattern, _independent_pattern, _vary_pattern, _word,
+    boundary_convergents, search_cycles, two_run_word,
 )
 
 
@@ -138,54 +140,74 @@ class MonteCarloSearchTests(unittest.TestCase):
                 "--depth", "3", "--seed", "0", "--prime-limit", "5", "--output", str(output),
             ]), 0)
             report = json.loads(output.read_text(encoding="utf-8"))
-        self.assertEqual(report["schema"], "collatz-monte-carlo-search-v3")
+        self.assertEqual(report["schema"], "collatz-monte-carlo-search-v5")
         self.assertEqual([level["evaluated"] for level in report["levels"]], [6, 6, 6])
         self.assertEqual(sum(report["totals"].values()), 18)
         self.assertEqual(report["conclusion"], "all_candidates_rejected")
         candidates = {item["id"]: item for item in report["candidates"]}
         self.assertGreater(len(report["levels"][0]["families"]), 1)
+        self.assertTrue(any(item["anchor"] is not None for item in candidates.values()))
+        self.assertTrue(any(item["anchor"] is None for item in candidates.values()))
         self.assertTrue(any(item["parent_id"] is not None for item in candidates.values()))
         self.assertTrue(any(item["level"] == 3 and item["parent_id"] is None
                             for item in candidates.values()))
         for item in candidates.values():
-            runs = [(int(u), d, int(w)) for u, d, w in item["runs"]]
-            odd_steps = sum(u + w for u, _, w in runs)
-            divisions = sum(u + d*w for u, d, w in runs)
+            def decode(entries):
+                return [
+                    Run(int(u), d, int(w), tuple((a, int(n)) for a, n in tail[0]) if tail else ())
+                    for u, d, w, *tail in entries
+                ]
+
+            runs = decode(item["runs"])
+            odd_steps, divisions = counts(_word(tuple(runs)))
+            run_count = len(runs)
+            for group in item["packed_runs"]:
+                copies = int(group["copies"])
+                motif = decode(group["runs"])
+                k, S = counts(_word(tuple(motif)))
+                odd_steps += copies * k
+                divisions += copies * S
+                run_count += copies * len(motif)
+            self.assertEqual(item["family"]["uphill_runs"], run_count)
             self.assertLessEqual(odd_steps, 5_000_000_000_000_000_000)
             self.assertGreaterEqual(odd_steps + divisions, 186_265_759_595)
-            self.assertTrue(all(u > 0 and d >= 2 and w > 0 for u, d, w in runs))
             self.assertEqual(int(item["analysis"]["counts"]["total_divisions"]), divisions)
             anchor = item["anchor"]
-            valley = int(anchor["odd_member"])
-            prefix = runs[:anchor["prefix_runs"]]
-            term = valley
-            self.assertGreaterEqual(sum(u + w for u, _, w in prefix), 12)
-            for u, d, w in prefix:
-                for exponent in [1] * u + [d] * w:
-                    value = 3 * term + 1
-                    term, remainder = divmod(value, 1 << exponent)
+            if anchor is not None:
+                valley = int(anchor["odd_member"])
+                prefix = runs[:anchor["prefix_runs"]]
+                term = valley
+                self.assertGreaterEqual(counts(_word(tuple(prefix)))[0], 12)
+                for run in prefix:
+                    for exponent, length in ((1, run.uphill), *run.descent):
+                        for _ in range(length):
+                            value = 3 * term + 1
+                            term, remainder = divmod(value, 1 << exponent)
+                            self.assertEqual(remainder, 0)
+                            self.assertEqual(term % 2, 1)
+                            self.assertGreaterEqual(term, 2**71)
+                incoming_divisions, incoming_length = runs[-1].descent[-1]
+                predecessor = valley
+                for _ in range(incoming_length):
+                    predecessor, remainder = divmod((predecessor << incoming_divisions) - 1, 3)
                     self.assertEqual(remainder, 0)
-                    self.assertEqual(term % 2, 1)
-                    self.assertGreaterEqual(term, 2**71)
-            _, incoming_divisions, incoming_length = runs[-1]
-            predecessor = valley
-            for _ in range(incoming_length):
-                predecessor, remainder = divmod((predecessor << incoming_divisions) - 1, 3)
-                self.assertEqual(remainder, 0)
-                self.assertEqual(predecessor % 2, 1)
+                    self.assertEqual(predecessor % 2, 1)
             if item["parent_id"] is not None:
                 parent = candidates[item["parent_id"]]
                 self.assertLess(parent["level"], item["level"])
                 self.assertEqual(parent["status"], "rejected")
-                self.assertNotEqual(parent["runs"], item["runs"])
+                self.assertNotEqual(
+                    (parent["runs"], parent["packed_runs"]), (item["runs"], item["packed_runs"])
+                )
                 self.assertEqual(parent["anchor"], item["anchor"])
-                self.assertEqual(parent["runs"][:anchor["prefix_runs"]], item["runs"][:anchor["prefix_runs"]])
-                self.assertEqual(parent["runs"][-1], item["runs"][-1])
+                if anchor is not None:
+                    self.assertEqual(parent["runs"][:anchor["prefix_runs"]], item["runs"][:anchor["prefix_runs"]])
+                    self.assertEqual(parent["runs"][-1], item["runs"][-1])
             self.assertEqual(item["status"], "rejected")
             self.assertTrue(item["analysis"]["rejection_certificates"])
             self.assertIn("closure_margin_per_step", item)
         self.assertTrue(any(
-            reason["filter"] == "valley_congruence_gap_bound"
+            reason["filter"] in ("valley_congruence_gap_bound", "packed_runs_gap_bound")
             for item in candidates.values()
             for reason in item["analysis"]["rejection_certificates"]
         ))
@@ -215,18 +237,48 @@ class MonteCarloSearchTests(unittest.TestCase):
         self.assertEqual(report["candidates"], [])
         self.assertEqual(report["conclusion"], "no_candidates")
 
-    def test_proves_that_the_200_billion_scope_is_excluded(self):
-        report = search_cycles(200_000_000_000)
-        self.assertEqual(report["conclusion"], "scope_excluded")
-        self.assertEqual(report["candidates"], [])
+    def test_samples_billions_of_runs_at_the_200_billion_step_ceiling(self):
+        report = search_cycles(200_000_000_000, cases_per_level=8, depth=2, seed=200)
+        self.assertEqual(report["conclusion"], "all_candidates_rejected")
+        self.assertEqual(len(report["candidates"]), 16)
         proof = report["preflight"]
-        self.assertEqual(proof["farey_upper"], "217976794617/137528045312")
-        self.assertEqual(proof["max_uphill_runs"], 256)
         self.assertEqual(proof["necessary_uphill_runs"], "3543773083")
-        self.assertGreaterEqual(
-            Fraction(proof["minimum_log_gap_lower_bound"]),
-            Fraction(proof["cycle_log_gap_upper_bound"]),
-        )
+        self.assertEqual(proof["max_uphill_runs"], 100_000_000_000)
+        for item in report["candidates"]:
+            self.assertGreaterEqual(item["family"]["uphill_runs"], 3_543_773_083)
+            self.assertLessEqual(int(item["analysis"]["counts"]["odd_steps"]), 200_000_000_000)
+            self.assertTrue(item["packed_runs"])
+            self.assertTrue(item["analysis"]["rejection_certificates"])
+
+    def test_independent_sampling_can_materialize_more_than_256_runs(self):
+        pattern = _independent_pattern(Random(3), 700, 1109, 300)
+        self.assertEqual(len(pattern.runs), 300)
+        self.assertFalse(pattern.packed)
+        self.assertIsNone(pattern.valley)
+        self.assertEqual(counts(_word(pattern.runs)), (700, 1109))
+
+    def test_independent_sampling_varies_divisions_within_a_downhill_run(self):
+        pattern = _independent_pattern(Random(8), 70, 350, 3)
+        self.assertEqual(counts(_word(pattern.runs)), (70, 350))
+        self.assertTrue(any(run.following for run in pattern.runs))
+        self.assertGreater(max(d for run in pattern.runs for d, _ in run.descent), 8)
+        self.assertEqual(pattern.prefix_runs, 0)
+
+    def test_resize_preserves_positive_runs_when_new_totals_do_not_fit(self):
+        rng = Random(92003)
+        runs = (Run(2, 2, 1), Run(15, 2, 3), Run(5, 4, 2), Run(100, 2, 3))
+        parent = AnchoredPattern(runs, 1, 11)
+
+        class SmallerWindow:
+            def sample(self, rng):
+                return 10, 16
+
+        with patch("collatz_algebra.search.lower_log_gap", return_value=Fraction(0)):
+            for _ in range(32):
+                child = _vary_pattern(rng, parent, SmallerWindow())
+                self.assertTrue(all(run.uphill > 0 and run.downhill > 0 for run in child.runs))
+                self.assertEqual(child.runs[0], runs[0])
+                self.assertEqual(child.runs[-1], runs[-1])
 
     def test_count_window_brackets_and_samples_constrained_pairs(self):
         ceiling = 5 * 10**18
@@ -286,6 +338,28 @@ class DefinitiveVerificationTests(unittest.TestCase):
         report = verify_exact(Repeat(Step(2), 1000))
         self.assertTrue(report["is_cycle"])
         self.assertEqual(report["conclusion"], "confirmed_trivial_cycle")
+
+    def test_verifies_giant_whole_word_repetitions_by_their_fixed_point(self):
+        copies = 200_000_000_000
+        positive = verify_exact(Repeat(Step(2), copies))
+        self.assertTrue(positive["is_cycle"])
+        self.assertEqual(positive["counts"]["odd_steps"], str(copies))
+        rejected = verify_exact(Repeat(Concat((Step(1), Step(3))), copies))
+        self.assertFalse(rejected["is_cycle"])
+        self.assertEqual(rejected["reason"], "nonintegral_closure")
+        self.assertEqual(rejected["counts"]["odd_steps"], str(2 * copies))
+
+    def test_balanced_exact_coefficients_match_left_to_right_composition(self):
+        from collatz_algebra.modular import evaluate_affine
+
+        word = Concat(tuple(
+            Repeat(Concat((Step(2), Step(d), Step(1))), d + 1) for d in range(1, 17)
+        ))
+        expected = evaluate_affine(word)
+        exact = evaluate_exact_affine(word)
+        self.assertEqual(exact.multiplier, expected.multiplier)
+        self.assertEqual(exact.additive, expected.additive)
+        self.assertEqual(1 << exact.divisions, expected.denominator)
 
     def test_decides_words_beyond_the_previous_work_limit(self):
         report = verify_exact(Step(1_000_001))

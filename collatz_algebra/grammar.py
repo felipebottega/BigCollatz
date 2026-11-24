@@ -105,9 +105,3 @@ def counts(word: Word) -> tuple[int, int]:
         return odd_steps, total_divisions
     odd_steps, total_divisions = counts(word.word)
     return odd_steps * word.times, total_divisions * word.times
-
-
-def is_manifestly_imprimitive(word: Word) -> bool:
-    """Detect the cheap, rigorous case where the complete word is a power."""
-
-    return isinstance(word, Repeat) and word.times > 1

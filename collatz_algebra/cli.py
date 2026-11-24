@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Sequence
 
@@ -33,6 +34,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--seed", type=int, default=0, help="seed for reproducible sampling")
     parser.add_argument(
+        "--independent-runs", action="store_true",
+        help="sample arbitrary individual downhill exponents without requiring an anchor",
+    )
+    parser.add_argument(
         "--prime-limit",
         type=int,
         default=DEFAULT_PRIME_LIMIT,
@@ -52,9 +57,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             depth=args.depth,
             seed=args.seed,
             prime_limit=args.prime_limit,
+            independent_runs=args.independent_runs,
         )
     except ValueError as error:
         parser.error(str(error))
+    except (MemoryError, OverflowError):
+        print(
+            "Exact search could not finish within this process's arithmetic or memory capacity.",
+            file=sys.stderr,
+        )
+        return 1
     rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.write_text(rendered, encoding="utf-8")

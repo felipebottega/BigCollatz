@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from decimal import Decimal, localcontext
 from functools import lru_cache
-from math import gcd
+from math import gcd, isqrt
 from typing import Iterable
 
-from .grammar import Word, counts, is_manifestly_imprimitive
+from .grammar import Word, counts
 from .modular import evaluate_mod
 
 MINIMUM_NONTRIVIAL_PERIOD = 186_265_759_595
@@ -20,7 +20,7 @@ def _primes_through(limit: int) -> tuple[int, ...]:
         return ()
     sieve = bytearray(b"\x01") * (limit + 1)
     sieve[0:2] = b"\x00\x00"
-    for value in range(2, int(limit**0.5) + 1):
+    for value in range(2, isqrt(limit) + 1):
         if sieve[value]:
             sieve[value * value : limit + 1 : value] = b"\x00" * (
                 (limit - value * value) // value + 1
@@ -90,8 +90,6 @@ def analyze(
                 "rigorous": True,
             }
         )
-    if is_manifestly_imprimitive(word):
-        reasons.append({"filter": "top_level_power", "rigorous": True})
 
     modular_checks: list[dict[str, object]] = []
     for modulus in selected_moduli:
