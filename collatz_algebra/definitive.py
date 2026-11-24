@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from .closure_interval import noninteger_closure
 from .exact_affine import closure_denominator, evaluate_exact_affine
 from .grammar import Repeat, Word, counts
 
 
 def verify_exact(word: Word) -> dict[str, object]:
-    """Decide closure by exact division of the compressed affine coefficients.
+    """Decide closure with a certified interval or exact affine division.
 
     Divisibility by the full power of two implies divisibility at each
     prefix because the remaining multiplier is odd. Each intermediate
@@ -20,8 +21,6 @@ def verify_exact(word: Word) -> dict[str, object]:
     # verified by its base, including the exact divisibility of every step.
     while isinstance(word, Repeat):
         word = word.word
-    coefficients = evaluate_exact_affine(word)
-    denominator = closure_denominator(coefficients)
     result = {
         "schema": "collatz-algebra-definitive-v2",
         "method": "exact_compressed_affine_closure",
@@ -33,6 +32,19 @@ def verify_exact(word: Word) -> dict[str, object]:
         "definitive": True,
     }
 
+    interval = noninteger_closure(word)
+    if interval is not None:
+        return {
+            **result,
+            "method": "directed_affine_interval",
+            "is_cycle": False,
+            "conclusion": "not_a_cycle",
+            "reason": "nonintegral_closure",
+            "closure_interval": interval,
+        }
+
+    coefficients = evaluate_exact_affine(word)
+    denominator = closure_denominator(coefficients)
     if denominator <= 0:
         return {
             **result, "is_cycle": False, "conclusion": "not_a_cycle",
