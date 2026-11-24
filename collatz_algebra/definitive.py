@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from .grammar import Word, counts
-from .modular import evaluate_affine
+from .exact_affine import closure_denominator, evaluate_exact_affine
+from .grammar import Repeat, Word, counts
 
 
 def verify_exact(word: Word) -> dict[str, object]:
@@ -15,8 +15,13 @@ def verify_exact(word: Word) -> dict[str, object]:
     and produces an even numerator.
     """
     odd_steps, total_divisions = counts(word)
-    coefficients = evaluate_affine(word)
-    denominator = coefficients.denominator - coefficients.multiplier
+    # A real affine map with a positive multiplier and any positive power
+    # share the same fixed points. A whole-word repeat can therefore be
+    # verified by its base, including the exact divisibility of every step.
+    while isinstance(word, Repeat):
+        word = word.word
+    coefficients = evaluate_exact_affine(word)
+    denominator = closure_denominator(coefficients)
     result = {
         "schema": "collatz-algebra-definitive-v2",
         "method": "exact_compressed_affine_closure",

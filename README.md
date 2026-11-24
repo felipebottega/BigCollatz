@@ -14,13 +14,13 @@ apply `3n+1` and divide by 2 until the result is odd. For example, the odd
 terms `27 → 41 → 31 → 47 → 71` go up, down, then up twice. Those last two
 increases belong to the same uphill stretch.
 
-1. **Try different patterns.** The program samples several families. It
-   varies the number of uphill and downhill stretches and how many times
-   each downhill step divides by two.
-2. **Check each pattern.** The program combines the stretches into one
-   equation and uses small remainders to rule out patterns that cannot close.
-3. **Finish the check.** If the quick checks cannot decide, the program
-   solves the full equation exactly using the compressed blocks.
+1. **Check the search range.** The program uses known bounds to see whether
+   the chosen step limit leaves room for a cycle in the families it samples.
+2. **Build different patterns.** Some start with a checked stretch around
+   a valley. Others are sampled without a fixed starting stretch.
+3. **Check each pattern.** The program uses small remainders and bounds on
+   the values at the valleys to rule out patterns that cannot close. When
+   those checks cannot decide, it solves the full equation exactly.
 4. **Refine the search.** The program scores each pattern and tries
    variations of the best ones at the next level. It also saves some of
    each level for fresh patterns.
@@ -41,7 +41,7 @@ and [Barina's verification (2025)](https://doi.org/10.1007/s11227-025-07337-0).
 From the project directory, with Python 3.11 or newer:
 
 ```bash
-python -m collatz_algebra.cli --search-cycles 150000000000 \
+python -m collatz_algebra.cli --search-cycles 200000000000 \
   --cases-per-level 24 --depth 3 --seed 0 --output search.json
 ```
 
@@ -50,9 +50,16 @@ python -m collatz_algebra.cli --search-cycles 150000000000 \
 - `--depth` sets the number of levels.
 - `--seed` lets you reproduce a search or try a different sample.
 
-Look at `totals` and `levels` in the JSON report for the results. A pattern
-receives a score and a definitive result in a completed search. The quick
-checks can prove rejection. When a pattern reaches the full equation, the
-exact calculation may require substantial memory and time.
+At 200 billion, the mathematical bound requires at least 3,543,773,083
+ups and an equal number of downs. The sampler can work at that scale.
+The default sampler packs sequences into repeated blocks.
+With `--independent-runs`, it samples the steps individually so the divisions
+can vary even within one downhill stretch. That can take much more memory.
+
+Look at `totals` and `levels` in the JSON report. A completed search gives
+each candidate a score and an exact decision. The verifier uses exact
+integers with no fixed step cutoff. Solving the full equation can take
+substantial memory and time. Install the optional GMP backend for large
+integer calculations with `python -m pip install '.[large]'`.
 
 Run the tests with `python -m unittest discover -v`.
