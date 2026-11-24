@@ -163,6 +163,23 @@ and stores the denominator as the shift count $S$ during composition.
 The exact coefficients can still grow with $S$. The optional GMP backend
 uses the same integer operations and verdict criteria.
 
+### Exact rejection by interval
+
+The verifier can also prove nonintegrality without constructing both
+integer coefficients. It encloses the normalized map
+$T(x)=\lambda x+\beta$ using directed rounding. When the bounds prove
+$\lambda<1$, it encloses the unique solution $\beta/(1-\lambda)$.
+An interval strictly between consecutive integers excludes any integer
+solution. If the interval is inconclusive, the verifier uses exact
+integer composition and division.
+
+The giant-word audit exercises a primitive word with $137{,}528{,}045{,}312$
+odd steps. It passes the screening filters. The verifier places its
+fixed point between consecutive integers, and a separate GMP/MPFR
+calculation checks that the two integers give opposite signs in the
+closure equation. Run both checks after installing the optional
+dependency with `python -m unittest tests.test_giant_certificate -v`.
+
 ## Modular certificates
 
 The symbolic search combines the coefficients of consecutive blocks.
