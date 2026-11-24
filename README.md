@@ -53,7 +53,7 @@ python -m collatz_algebra.cli --search-two-run 150000000000 --minimum-period 186
 ```
 
 ```mermaid
-flowchart TD
+flowchart LR
     A["Approximate log₂(3) from above with continued fractions"]
     B["Keep convergents S/k with k ≤ 150 billion and k < S < 2k"]
     C["Form two runs of division exponents<br/>u = 2k − S steps with exponent 1<br/>v = S − k steps with exponent 2"]
