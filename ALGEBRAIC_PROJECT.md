@@ -1,9 +1,9 @@
 # Algebraic Collatz model
 
 BigCollatz studies positive Collatz cycles by representing their odd-to-odd
-steps as exponent words. The methods below decide bounded words exactly,
-exclude a structured family symbolically, and enumerate a finite region of
-cycle equations. See the [period lower bound](README.md#lower-bound-for-a-nontrivial-cycle).
+steps as exponent words. The public search excludes a structured family symbolically. The internal
+exact verifier checks bounded words. See the
+[period lower bound](README.md#lower-bound-for-a-nontrivial-cycle).
 
 ## Cycle equation
 
@@ -42,9 +42,9 @@ Words are JSON trees built from steps, concatenations, and repetitions:
 ```
 
 Large repetition counts can be encoded as decimal strings to preserve precision
-across JSON implementations. The verifier computes `k` and `S` from the tree.
-If either exceeds the exact-work limit, it returns `not_tested` before
-expanding the word. Otherwise it constructs the exact closure equation, checks
+across JSON implementations. The internal exact verifier computes `k` and `S` from the tree.
+If either exceeds the exact-work limit, it raises `IneligibleCandidate`
+before expanding the word. Otherwise it constructs the exact closure equation, checks
 that it has a positive odd integer solution, and replays the odd-to-odd steps.
 Confirmation requires every local valuation to match the word and the final
 member to equal the initial member.
@@ -76,25 +76,8 @@ local minimum, so Steiner's theorem excludes it as a nontrivial positive
 cycle. The trivial cycle has the exponent word `[2]`. Cycles with two or
 more local minima lie outside the two-run family's scope.
 
-## Bounded cycle-equation enumeration
-
-[`odd_map.py`](bigcollatz/odd_map.py) implements the accelerated map and
-exact replay. [`cycle_equation.py`](bigcollatz/cycle_equation.py) solves the
-closure equation with arbitrary-precision integer division and provides
-linear-time rotation and primitivity algorithms.
-
-[`cycle_search.py`](bigcollatz/cycle_search.py) uses a sum-constrained FKM
-necklace recursion to enumerate primitive, lexicographically least cyclic
-words within odd-period and total-division bounds. It applies the positivity
-bound and exact small-prime filters before solving the full equations.
-Canonical-vector ordinals assign work deterministically to shards. Atomic
-checkpoints store the configuration, cursor, counters, and discoveries for
-resumption. See the [search results](results/README.md).
-
-The number of exponent words grows combinatorially. Exact word verification
-also constructs integers whose bit length grows with `S`. These costs limit
-exact methods to bounded workloads. The theorem used by the symbolic search
-covers a single family of words.
+Exact word verification constructs integers whose bit length grows with
+`S`. This limits the exact verifier to bounded workloads.
 
 ## References
 

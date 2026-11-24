@@ -101,43 +101,6 @@ class SieveTests(unittest.TestCase):
                 break
         self.assertIsNotNone(found)
 
-    def test_cli_writes_stable_json(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            source = root / "word.json"
-            output = root / "report.json"
-            source.write_text(json.dumps({"step": 2}), encoding="utf-8")
-            self.assertEqual(
-                main(
-                    [
-                        str(source),
-                        "--output",
-                        str(output),
-                    ]
-                ),
-                0,
-            )
-            self.assertEqual(
-                json.loads(output.read_text(encoding="utf-8"))["schema"],
-                "collatz-algebra-definitive-v1",
-            )
-
-    def test_cli_does_not_test_an_ineligible_word(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            source = root / "word.json"
-            output = root / "report.json"
-            source.write_text(
-                json.dumps(
-                    {"repeat": {"word": {"step": 2}, "times": "1000001"}}
-                ),
-                encoding="utf-8",
-            )
-            self.assertEqual(main([str(source), "--output", str(output)]), 2)
-            report = json.loads(output.read_text(encoding="utf-8"))
-            self.assertEqual(report["conclusion"], "not_tested")
-            self.assertFalse(report["definitive"])
-
     def test_cli_searches_representations_without_trajectories(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -158,6 +121,22 @@ class SieveTests(unittest.TestCase):
             report = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(report["schema"], "collatz-symbolic-search-v1")
             self.assertFalse(report["trajectory_terms_computed"])
+            self.assertEqual(report["conclusion"], "all_candidates_rejected")
+            self.assertTrue(report["candidates"])
+            for candidate in report["candidates"]:
+                self.assertEqual(candidate["status"], "rejected")
+                self.assertIn(
+                    "steiner_one_cycle_theorem",
+                    [
+                        reason["filter"]
+                        for reason in candidate["analysis"]["rejection_certificates"]
+                    ],
+                )
+
+    def test_search_reports_when_no_candidates_fit_the_ceiling(self):
+        report = search_two_run(1)
+        self.assertEqual(report["candidates"], [])
+        self.assertEqual(report["conclusion"], "no_candidates")
 
 
 class SymbolicSearchTests(unittest.TestCase):
