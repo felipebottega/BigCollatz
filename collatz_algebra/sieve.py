@@ -3,19 +3,21 @@
 from __future__ import annotations
 
 from decimal import Decimal, localcontext
+from functools import lru_cache
 from math import gcd
 from typing import Iterable
 
 from .grammar import Word, counts, is_manifestly_imprimitive
 from .modular import evaluate_mod
 
-DEFAULT_MINIMUM_PERIOD = 186_000_000_000
+MINIMUM_NONTRIVIAL_PERIOD = 186_265_759_595
 DEFAULT_PRIME_LIMIT = 10_000
 
 
-def _primes_through(limit: int) -> list[int]:
+@lru_cache(maxsize=8)
+def _primes_through(limit: int) -> tuple[int, ...]:
     if limit < 2:
-        return []
+        return ()
     sieve = bytearray(b"\x01") * (limit + 1)
     sieve[0:2] = b"\x00\x00"
     for value in range(2, int(limit**0.5) + 1):
@@ -23,7 +25,7 @@ def _primes_through(limit: int) -> list[int]:
             sieve[value * value : limit + 1 : value] = b"\x00" * (
                 (limit - value * value) // value + 1
             )
-    return [value for value in range(5, limit + 1) if sieve[value]]
+    return tuple(value for value in range(5, limit + 1) if sieve[value])
 
 
 def targeted_moduli(odd_steps: int, total_divisions: int, limit: int) -> list[int]:
@@ -51,7 +53,6 @@ def _log_gap(odd_steps: int, total_divisions: int) -> str:
 def analyze(
     word: Word,
     moduli: Iterable[int] | None = None,
-    minimum_period: int = DEFAULT_MINIMUM_PERIOD,
     prime_limit: int = DEFAULT_PRIME_LIMIT,
 ) -> dict[str, object]:
     """Apply rigorous cheap filters and return a machine-readable report.
@@ -61,12 +62,6 @@ def analyze(
     ``gcd(D, m)`` divides ``A``.
     """
 
-    if (
-        isinstance(minimum_period, bool)
-        or not isinstance(minimum_period, int)
-        or minimum_period < 1
-    ):
-        raise ValueError("minimum_period must be a positive integer")
     odd_steps, total_divisions = counts(word)
     period = odd_steps + total_divisions
     reasons: list[dict[str, object]] = []
@@ -76,12 +71,12 @@ def analyze(
         else list(moduli)
     )
 
-    if period < minimum_period:
+    if period < MINIMUM_NONTRIVIAL_PERIOD:
         reasons.append(
             {
                 "filter": "minimum_period",
                 "actual": str(period),
-                "required": str(minimum_period),
+                "required": str(MINIMUM_NONTRIVIAL_PERIOD),
             }
         )
     # 2**1054 < 3**665 proves log_2(3) > 1054/665 using only

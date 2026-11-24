@@ -1,4 +1,4 @@
-"""Command-line entry point for symbolic two-run cycle search."""
+"""Command-line entry point for Monte Carlo cycle search."""
 
 from __future__ import annotations
 
@@ -7,28 +7,31 @@ import json
 from pathlib import Path
 from typing import Sequence
 
-from .sieve import DEFAULT_MINIMUM_PERIOD, DEFAULT_PRIME_LIMIT
-from .search import search_cycles
+from .search import DEFAULT_CASES_PER_LEVEL, DEFAULT_DEPTH, search_cycles
+from .sieve import DEFAULT_PRIME_LIMIT
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="collatz-algebra",
-        description="Generate and evaluate symbolic two-run Collatz cycle patterns",
+        description="Generate and evaluate Collatz cycle patterns with Monte Carlo search",
     )
     parser.add_argument(
         "--search-cycles",
         required=True,
         type=int,
         metavar="MAX_ODD_STEPS",
-        help="search symbolic 1^u 2^v representations selected by convergents",
+        help="maximum odd steps per candidate",
     )
     parser.add_argument(
-        "--minimum-period",
-        type=int,
-        default=DEFAULT_MINIMUM_PERIOD,
-        help="minimum unaccelerated period assumed by the research model",
+        "--cases-per-level", type=int, default=DEFAULT_CASES_PER_LEVEL,
+        help="maximum number of distinct candidates evaluated per level",
     )
+    parser.add_argument(
+        "--depth", type=int, default=DEFAULT_DEPTH,
+        help="number of search levels",
+    )
+    parser.add_argument("--seed", type=int, default=0, help="seed for reproducible sampling")
     parser.add_argument(
         "--prime-limit",
         type=int,
@@ -40,12 +43,18 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
-    report = search_cycles(
-        args.search_cycles,
-        minimum_period=args.minimum_period,
-        prime_limit=args.prime_limit,
-    )
+    parser = _parser()
+    args = parser.parse_args(argv)
+    try:
+        report = search_cycles(
+            args.search_cycles,
+            cases_per_level=args.cases_per_level,
+            depth=args.depth,
+            seed=args.seed,
+            prime_limit=args.prime_limit,
+        )
+    except ValueError as error:
+        parser.error(str(error))
     rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.write_text(rendered, encoding="utf-8")

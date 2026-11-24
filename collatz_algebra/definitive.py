@@ -1,140 +1,52 @@
-"""Exact, definitive verification for bounded compressed Collatz words."""
+"""Exact cycle decisions by composing compressed exponent words."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Iterator
-
-from .grammar import Concat, Repeat, Step, Word, counts
-
-DEFAULT_EXACT_WORK_LIMIT = 1_000_000
+from .grammar import Word, counts
+from .modular import evaluate_affine
 
 
-@dataclass(frozen=True, slots=True)
-class IneligibleCandidate(ValueError):
-    """A word whose exact proof would exceed the configured deterministic bound."""
+def verify_exact(word: Word) -> dict[str, object]:
+    """Decide closure by exact division of the compressed affine coefficients.
 
-    odd_steps: int
-    total_divisions: int
-    work_limit: int
-
-    def __str__(self) -> str:
-        return (
-            "candidate is not eligible for a definitive answer: "
-            f"odd_steps={self.odd_steps}, total_divisions={self.total_divisions}, "
-            f"exact_work_limit={self.work_limit}"
-        )
-
-
-def iter_exponents(word: Word) -> Iterator[int]:
-    """Expand an eligible word lazily, without retaining its exponent vector."""
-
-    if isinstance(word, Step):
-        yield word.divisions
-    elif isinstance(word, Concat):
-        for part in word.parts:
-            yield from iter_exponents(part)
-    else:
-        for _ in range(word.times):
-            yield from iter_exponents(word.word)
-
-
-def verify_exact(
-    word: Word, *, work_limit: int = DEFAULT_EXACT_WORK_LIMIT
-) -> dict[str, object]:
-    """Decide exactly whether a bounded exponent word is a positive Collatz cycle.
-
-    Both the number of odd steps and the total power of two are bounded before any
-    affine integer or trajectory is constructed.  Consequently every accepted
-    input terminates with either a proof of rejection or a confirmed cycle.
+    Divisibility by the full power of two implies divisibility at each
+    prefix because the remaining multiplier is odd. Each intermediate
+    integer is odd because its next update multiplies it by three, adds one,
+    and produces an even numerator.
     """
-
-    if (
-        isinstance(work_limit, bool)
-        or not isinstance(work_limit, int)
-        or work_limit < 1
-    ):
-        raise ValueError("work_limit must be a positive integer")
     odd_steps, total_divisions = counts(word)
-    if max(odd_steps, total_divisions) > work_limit:
-        raise IneligibleCandidate(odd_steps, total_divisions, work_limit)
-
-    additive = 0
-    prefix_divisions = 0
-    for exponent in iter_exponents(word):
-        additive = 3 * additive + (1 << prefix_divisions)
-        prefix_divisions += exponent
-
-    denominator = (1 << total_divisions) - pow(3, odd_steps)
-    base = {
-        "schema": "collatz-algebra-definitive-v1",
-        "method": "exact_boehm_sontacchi_and_2_adic_replay",
+    coefficients = evaluate_affine(word)
+    denominator = coefficients.denominator - coefficients.multiplier
+    result = {
+        "schema": "collatz-algebra-definitive-v2",
+        "method": "exact_compressed_affine_closure",
         "counts": {
             "odd_steps": str(odd_steps),
             "total_divisions": str(total_divisions),
             "unaccelerated_period": str(odd_steps + total_divisions),
         },
         "definitive": True,
-        "exact_work_limit": work_limit,
     }
+
     if denominator <= 0:
         return {
-            **base,
-            "is_cycle": False,
-            "conclusion": "not_a_cycle",
+            **result, "is_cycle": False, "conclusion": "not_a_cycle",
             "reason": "nonpositive_closure_denominator",
         }
-    quotient, remainder = divmod(additive, denominator)
+    start, remainder = divmod(coefficients.additive, denominator)
     if remainder:
         return {
-            **base,
-            "is_cycle": False,
-            "conclusion": "not_a_cycle",
+            **result, "is_cycle": False, "conclusion": "not_a_cycle",
             "reason": "nonintegral_closure",
         }
-    if quotient <= 0 or quotient % 2 == 0:
-        return {
-            **base,
-            "is_cycle": False,
-            "conclusion": "not_a_cycle",
-            "reason": "closure_is_not_a_positive_odd_integer",
-        }
-
-    start = state = quotient
-    for index, exponent in enumerate(iter_exponents(word)):
-        value = 3 * state + 1
-        actual = (value & -value).bit_length() - 1
-        if actual != exponent:
-            return {
-                **base,
-                "is_cycle": False,
-                "conclusion": "not_a_cycle",
-                "reason": "incorrect_2_adic_valuation",
-                "failed_odd_step": str(index),
-                "expected_divisions": str(exponent),
-                "actual_divisions": str(actual),
-            }
-        state = value >> exponent
-        if state <= 0 or state % 2 == 0:
-            return {
-                **base,
-                "is_cycle": False,
-                "conclusion": "not_a_cycle",
-                "reason": "invalid_odd_state",
-            }
-
-    if state != start:
-        return {
-            **base,
-            "is_cycle": False,
-            "conclusion": "not_a_cycle",
-            "reason": "word_does_not_close",
-        }
+    try:
+        starting_integer = str(start)
+    except ValueError:
+        # Python can limit decimal conversion of large integers.
+        starting_integer = hex(start)
     return {
-        **base,
+        **result,
         "is_cycle": True,
-        "conclusion": (
-            "confirmed_trivial_cycle" if start == 1 else "confirmed_nontrivial_cycle"
-        ),
-        "starting_integer": str(start),
+        "conclusion": "confirmed_trivial_cycle" if start == 1 else "confirmed_nontrivial_cycle",
+        "starting_integer": starting_integer,
     }
