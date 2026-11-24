@@ -69,7 +69,7 @@ Here `k` counts odd steps, `S` counts divisions by 2, and `A` is the constant
 from composing the updates in the proposed pattern. The first proposal that meets the period bound has 137,528,045,312 odd steps and 355,504,839,929
 total steps. The period and congruence checks give additional reasons for
 rejection, and Steiner's theorem decides the entire two-run family.
-See [the symbolic analysis](RESEARCH_SYMBOLIC.md).
+See [the symbolic analysis](ALGEBRAIC_PROJECT.md#symbolic-two-run-family).
 
 ## Setup and tests
 
