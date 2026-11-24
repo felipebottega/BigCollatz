@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from decimal import Decimal, localcontext
 from fractions import Fraction
 from itertools import groupby
+from pathlib import Path
 from random import Random
 from typing import Iterator
 
@@ -17,6 +18,7 @@ from .bounds import (
 from .definitive import verify_exact
 from .grammar import Concat, Repeat, Step, Word, counts
 from .modular import evaluate_affine
+from .modular_closure import DEFAULT_MODULUS_BITS
 from .sieve import DEFAULT_PRIME_LIMIT, MINIMUM_NONTRIVIAL_PERIOD, analyze, targeted_moduli
 
 
@@ -441,7 +443,8 @@ def _valley_gap_bound(pattern: Pattern) -> Fraction:
 
 
 def _evaluate_pattern(
-    pattern: Pattern, prime_limit: int, packed: tuple[RunGroup, ...] = (), prefix_runs: int = 0
+    pattern: Pattern, prime_limit: int, packed: tuple[RunGroup, ...] = (), prefix_runs: int = 0,
+    *, modulus_bits: int = DEFAULT_MODULUS_BITS, checkpoint_dir: Path | None = None,
 ) -> tuple[str, dict[str, object]]:
     word = _pattern_word(pattern, packed, prefix_runs)
     run_count = len(pattern) + sum(len(group.runs) * group.copies for group in packed)
@@ -466,7 +469,7 @@ def _evaluate_pattern(
             report["rejected"] = True
             report["conclusion"] = "impossible_for_the_requested_model"
             return "rejected", report
-    exact = verify_exact(word)
+    exact = verify_exact(word, modulus_bits=modulus_bits, checkpoint_dir=checkpoint_dir)
     report["exact_verification"] = exact
     report["rejected"] = not exact["is_cycle"]
     report["conclusion"] = exact["conclusion"]
@@ -495,6 +498,8 @@ def search_cycles(
     seed: int = 0,
     prime_limit: int = DEFAULT_PRIME_LIMIT,
     independent_runs: bool = False,
+    modulus_bits: int = DEFAULT_MODULUS_BITS,
+    checkpoint_dir: Path | None = None,
 ) -> dict[str, object]:
     """Evaluate random patterns and refine the best-scoring proposals."""
     for name, value in (
@@ -502,6 +507,8 @@ def search_cycles(
     ):
         if type(value) is not int or value < 1:
             raise ValueError(f"{name} must be a positive integer")
+    if type(modulus_bits) is not int or modulus_bits < 2:
+        raise ValueError("modulus_bits must be at least 2")
     if type(seed) is not int:
         raise ValueError("seed must be an integer")
     targeted_moduli(1, 2, prime_limit)  # Validate even when the ceiling precludes any proposal.
@@ -543,7 +550,10 @@ def search_cycles(
                     continue
                 seen.add(key)
                 pattern = sampled.runs
-                status, analysis = _evaluate_pattern(pattern, prime_limit, sampled.packed, sampled.prefix_runs)
+                status, analysis = _evaluate_pattern(
+                    pattern, prime_limit, sampled.packed, sampled.prefix_runs,
+                    modulus_bits=modulus_bits, checkpoint_dir=checkpoint_dir,
+                )
                 counts = analysis["counts"]
                 slope = Fraction(int(counts["total_divisions"]), int(counts["odd_steps"]))
                 score = _margin(slope)
@@ -613,6 +623,7 @@ def search_cycles(
             "depth": depth,
             "seed": seed,
             "prime_limit": prime_limit,
+            "modulus_bits": modulus_bits,
             "independent_runs": independent_runs,
         },
         "conclusion": conclusion,
