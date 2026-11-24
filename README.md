@@ -52,23 +52,32 @@ and the lower bound on the unaccelerated period:
 python -m collatz_algebra.cli --search-two-run 150000000000 --minimum-period 186265759595
 ```
 
-```mermaid
-flowchart LR
-    A["Approximate log₂(3) from above with continued fractions"]
-    B["Keep convergents S/k with k ≤ 150 billion and k < S < 2k"]
-    C["Form two runs of division exponents<br/>u = 2k − S steps with exponent 1<br/>v = S − k steps with exponent 2"]
-    D["Compare the total period k + S with 186,265,759,595"]
-    E["Test whether the closure equation<br/>(2^S − 3^k)n = A can have an integer solution<br/>using small prime divisors of 2^S − 3^k"]
-    F["Apply Steiner's theorem<br/>One increasing run and one decreasing run<br/>cannot form a nontrivial positive Collatz cycle"]
-    G["Reject every proposed two-run pattern"]
+1. **Choose the size of each candidate pattern.** Compute the convergents of
+   the continued fraction for `log2(3)`. Keep the fractions `S/k` above
+   `log2(3)` with `k` at or below the chosen ceiling and `k < S < 2k`.
+   Here `k` counts odd steps and `S` counts divisions by 2. Approximating
+   from above selects pairs near the boundary `2^S > 3^k`, a necessary
+   condition for a positive cycle.
 
-    A --> B --> C --> D --> E --> F --> G
-```
+2. **Build a pattern with two runs.** For the first `2k - S` odd steps,
+   divide by 2 once after each `3n+1`. For the next `S - k` odd steps,
+   divide by 2 twice after each `3n+1`. Together the runs account for
+   exactly `k` odd steps and `S` divisions.
 
-Here `k` counts odd steps, `S` counts divisions by 2, and `A` is the constant
-from composing the updates in the proposed pattern. The first proposal that meets the period bound has 137,528,045,312 odd steps and 355,504,839,929
-total steps. The period and congruence checks give additional reasons for
-rejection, and Steiner's theorem decides the entire two-run family.
+3. **Check necessary conditions for closure.** Compare the total period
+   `k + S` with the given lower bound. Compose the pattern into the
+   closure equation `(2^S - 3^k)n = A`, where `A` is the constant from
+   composing the updates. Test whether the equation can hold modulo
+   small prime divisors of `2^S - 3^k`. A failed check rules out the
+   pattern.
+
+4. **Apply Steiner's theorem.** In a nontrivial positive cycle, the first
+   run would strictly increase and the second would strictly decrease.
+   Steiner's theorem excludes such cycles with exactly one local minimum,
+   so every proposed pattern in this family is rejected.
+
+Each retained convergent gives one candidate pattern. Raising the ceiling
+adds candidates only when more convergents satisfy the selection rules.
 See [the symbolic analysis](ALGEBRAIC_PROJECT.md#symbolic-two-run-family).
 
 ## Setup and tests
