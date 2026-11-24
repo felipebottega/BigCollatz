@@ -42,10 +42,10 @@ that follow. For instance, $3\cdot7577+1=22732$, and dividing by two twice
 gives $5683$. The six steps end at $1199$, so this segment does not close
 back at $3367$.
 
-### How the command bounds relate to a family
+### How the search limits relate to a family
 
 ```bash
-python -m collatz_algebra.cli --search-cycles 150000000000 --minimum-period 186265759595
+python -m collatz_algebra.cli --search-cycles 150000000000 --cases-per-level 24 --depth 3 --seed 0
 ```
 
 Let $k$ be the number of odd steps and $S$ the number of divisions by
@@ -60,8 +60,7 @@ k+S &= 2u+3w+2v+4z.
 \end{aligned}
 $$
 
-The value of `--search-cycles` caps $k$ for each candidate. The value of
-`--minimum-period` sets the lower bound on $k+S$ for the length check.
+The value of `--search-cycles` caps $k$ for each candidate. The length check uses a fixed lower bound of $186{,}265{,}759{,}595$ on $k+S$.
 If the four-block family were searched with the command above, a pattern
 within the ceiling and passing the length check would satisfy
 
@@ -72,9 +71,10 @@ u+w+v+z &\le 150{,}000{,}000{,}000,\\
 \end{aligned}
 $$
 
-The four-block family illustrates the counting. The command searches only
-the [two-run family](#symbolic-two-run-family). The odd-step ceiling limits
-which proposals are generated. The period bound is checked after generation.
+The four-block family illustrates the counting. The implemented search
+samples patterns with more runs, using the same rules for counting steps.
+The odd-step ceiling limits which proposals are generated, and the fixed
+period bound remains part of the sieve.
 
 ## Cycle equation
 
@@ -142,13 +142,20 @@ $$
 
 ## Compressed words and exact verification
 
-The internal verifier stores words as steps, concatenations, and
-repetitions. A repeated block can be counted without expanding it.
-For exact verification, both $k$ and $S$ must fit the configured work
-limit. The verifier solves the closure equation for a positive odd integer,
-then checks that each step has the specified number of divisions and
-that the final member equals the starting member. Exact verification
-constructs integers whose bit length grows with $S$.
+The verifier combines blocks by affine composition and computes repeated
+blocks by binary exponentiation. It uses exact integer coefficients to
+decide whether $D=2^S-3^k$ is positive and divides $A$. If so, $x=A/D$ is a
+positive odd integer because $D$ and $A$ are odd.
+
+The divisibility check also proves that the intermediate steps are valid.
+For any prefix with $S_j$ divisions, let $B_j$ be its affine numerator at
+$x$. The full numerator is congruent to $3^{k-j}B_j$ modulo $2^{S_j}$.
+Closure makes that numerator divisible by $2^S$, so the odd multiplier
+implies $2^{S_j}\mid B_j$. Thus all intermediate results are integers.
+Each intermediate value is odd because its next update has an even
+numerator. The final value equals the initial odd value, so every listed
+division count is exact. The verifier can prove closure without replaying
+the trajectory. The size of the exact coefficients can still grow with $S$.
 
 ## Modular certificates
 
@@ -164,24 +171,73 @@ A failed check rules out the word. Passing leaves full divisibility and the
 step-by-step counts open. The gap $S\ln 2-k\ln 3$ is a finite-precision
 diagnostic.
 
-## Symbolic two-run family
+## Monte Carlo search
 
-The command proposes words of the form $1^u2^w$, with positive block lengths.
-For this family,
+The sampler uses patterns of the form
 
 $$
-k=u+w,\qquad S=u+2w,\qquad k+S=2u+3w.
+1^{u_1}d_1^{w_1}\,1^{u_2}d_2^{w_2}\cdots 1^{u_r}d_r^{w_r},
+\qquad u_i,w_i>0,\quad d_i\ge2.
 $$
 
-The program uses upper continued-fraction convergents of $\log_2 3$ to
-select pairs $(k,S)$ near the boundary $2^S>3^k$. It keeps proposals with
-$k<S<2k$ and $k$ within the odd-step ceiling. The length check and modular
-certificates can give reasons to reject individual proposals.
+Each uphill run is followed by a downhill run using one division count.
+The sampler chooses from 128 to 256 uphill runs and from two to eight
+divisions per downhill step. These are sampling choices. The report groups
+patterns by the number of uphill runs and their largest downhill division
+count. Each sample keeps a valley between two short runs. Long runs impose
+divisibility conditions that can force the odd term at a valley to be large.
+Patterns with one uphill and one downhill run are already excluded
+by Steiner's theorem.
 
-The word has one uphill run and one downhill run for odd terms greater
-than one. Steiner's theorem excludes any nontrivial positive cycle with
-this shape. The known cycle $1\to4\to2\to1$ has the single-entry word $(2)$.
-Cycles with more uphill and downhill runs lie outside the command's scope.
+To sample huge step counts, the program combines the numerator and
+denominator pairs of the two neighboring fractions in the lower-bound
+proof. It chooses positive integer weights that produce a ratio near the
+necessary interval and satisfy the odd-step ceiling. It then divides those
+counts among the runs. This makes the patterns compact even when a run
+contains billions of steps. The sampler explores part of the space of
+possible exponent words.
+
+### A bound from the number of runs
+
+Suppose a nontrivial cycle has $r$ uphill runs and $r$ downhill runs, and
+every odd member is at least $m=2^{71}$. In an uphill run, values grow by
+a factor of at least $3/2$. Traversed backwards, a downhill run grows by
+at least $5/4$, since $(4y-1)/3\ge 5y/4$ for $y\ge 4$. Geometric series
+bound the sums of reciprocal members contributed by one uphill run and
+one downhill run by $3/m$ and $5/m$, respectively. Consequently,
+
+$$
+S\ln 2-k\ln 3
+=\sum_i\ln\left(1+\frac{1}{3x_i}\right)
+<\frac{8r}{3m}.
+$$
+
+The program uses rational lower and upper bounds on the logarithms for
+this rejection test. A candidate that survives this test and the modular
+checks goes to exact affine closure.
+
+### Score and refinement
+
+Among candidates with a positive margin, the program prioritizes smaller
+values of
+
+$$
+\delta=\frac{S\ln 2-k\ln 3}{k}.
+$$
+
+The score measures how close the ratio $S/k$ is to the lower edge of the
+necessary interval. It ties for patterns with the same ratio, regardless of
+the order of their steps. After the first level, some slots sample fresh
+patterns and the rest vary one of the four highest-ranked
+patterns found so far. Variations can redistribute uphill steps, exchange
+downhill blocks, or resize the pattern using nearby counts $(k,S)$.
+Rearranging the steps can change the modular results even when the score
+stays the same.
+
+The report records the counts by outcome and family, the best-scoring
+candidate at each level, and the parent of each variation. Each entry in
+`runs` lists the uphill length, divisions per downhill step, and downhill
+length in that order. A completed search reports each pattern as rejected or confirmed.
 
 ## References
 
